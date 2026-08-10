@@ -56,6 +56,16 @@ public static class AuthorizationPolicies
     /// <summary>Financial reporting and system auditing.</summary>
     public const string FinancialReports = nameof(FinancialReports);
 
+    /// <summary>
+    /// View the day's reservation sheet and check arriving guests in.
+    /// </summary>
+    /// <remarks>
+    /// Not a row in the specification's matrix. Added because both are front-of-house duties the
+    /// matrix does not cover, and because the sheet exposes other guests' names and party sizes, so
+    /// it cannot be served by the guest-facing availability policy.
+    /// </remarks>
+    public const string ManageReservationDesk = nameof(ManageReservationDesk);
+
     private static readonly Dictionary<string, UserRole[]> Matrix = new()
     {
         [ViewMenu] = [UserRole.Guest, UserRole.Waiter, UserRole.Manager, UserRole.Owner],
@@ -70,7 +80,8 @@ public static class AuthorizationPolicies
         [ManageShifts] = [UserRole.Manager, UserRole.Owner],
         [ManageMenu] = [UserRole.Manager, UserRole.Owner],
         [ManageInventory] = [UserRole.Manager, UserRole.Owner],
-        [FinancialReports] = [UserRole.Owner]
+        [FinancialReports] = [UserRole.Owner],
+        [ManageReservationDesk] = [UserRole.Waiter, UserRole.Manager, UserRole.Owner]
     };
 
     /// <summary>Every policy name, for registration at startup.</summary>

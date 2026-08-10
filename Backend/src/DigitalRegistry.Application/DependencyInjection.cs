@@ -1,6 +1,7 @@
 using System.Reflection;
 using DigitalRegistry.Application.Common.Events;
 using DigitalRegistry.Application.Common.Interfaces;
+using DigitalRegistry.Application.Common.Services;
 using DigitalRegistry.Application.PipelineBehaviors;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,11 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(applicationAssembly, includeInternalTypes: true);
 
         services.AddScoped<IDomainEventDispatcher, MediatRDomainEventDispatcher>();
+        services.AddScoped<IInventoryAllocator, InventoryAllocator>();
+
+        // Shared by the staff and guest-QR order paths. Concrete rather than behind an interface
+        // because it is an internal collaborator of this layer, not a seam for other layers.
+        services.AddScoped<Features.Orders.OrderOpener>();
 
         return services;
     }
