@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- MediatR 12.5.0 is the last Apache-2.0 licensed release; 13.0.0 onwards ships a
+         commercial licence. Do not bump this without checking the licence terms. -->
+    <PackageReference Include="MediatR" Version="12.5.0" />
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <!-- EF Core abstractions only: the layer needs DbSet<T>/IQueryable and the async LINQ
+         operators to express queries. The provider is chosen in Infrastructure. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DigitalRegistry.Domain\DigitalRegistry.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

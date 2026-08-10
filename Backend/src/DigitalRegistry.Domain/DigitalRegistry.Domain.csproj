@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The Domain layer takes no dependency on EF Core, ASP.NET Core or any infrastructure
+       concern. The single exception is Microsoft.Extensions.Identity.Stores, which supplies
+       IdentityUser<Guid> for ApplicationUser as required by the specification. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="10.0.10" />
+  </ItemGroup>
+
+</Project>

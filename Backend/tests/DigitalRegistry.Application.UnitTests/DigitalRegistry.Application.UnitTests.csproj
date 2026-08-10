@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
+    <PackageReference Include="NSubstitute" Version="6.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DigitalRegistry.Application\DigitalRegistry.Application.csproj" />
+    <ProjectReference Include="..\..\src\DigitalRegistry.Domain\DigitalRegistry.Domain.csproj" />
+    <!-- The in-memory test context derives from the real DbContext so the configured model
+         (keys, relationships, indexes) is exercised by the tests. -->
+    <ProjectReference Include="..\..\src\DigitalRegistry.Infrastructure\DigitalRegistry.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
