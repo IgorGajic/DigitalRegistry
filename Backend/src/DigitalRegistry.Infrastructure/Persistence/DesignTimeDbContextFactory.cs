@@ -34,6 +34,6 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Applicatio
             .UseSqlServer(connectionString, sqlServer =>
                 sqlServer.MigrationsAssembly(typeof(DesignTimeDbContextFactory).Assembly.FullName));
 
-        return new ApplicationDbContext(optionsBuilder.Options);
+        return new ApplicationDbContext(optionsBuilder.Options, NullDomainEventDispatcher.Instance);
     }
 }

@@ -19,16 +19,12 @@ namespace DigitalRegistry.Infrastructure.Persistence;
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>,
     IDigitalRegistryDbContext
 {
-    private readonly IDomainEventDispatcher? _domainEventDispatcher;
-
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-        : base(options)
-    {
-    }
+    private readonly IDomainEventDispatcher _domainEventDispatcher;
 
     /// <summary>
-    /// Preferred constructor. The dispatcher is optional so that design-time tooling and tests can
-    /// construct the context without wiring up MediatR.
+    /// The single constructor, so dependency injection never has to choose between overloads.
+    /// Callers with no interest in domain events — migrations tooling, tests — pass
+    /// <see cref="NullDomainEventDispatcher.Instance"/>.
     /// </summary>
     public ApplicationDbContext(
         DbContextOptions<ApplicationDbContext> options,
@@ -85,7 +81,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
             aggregate.ClearDomainEvents();
         }
 
-        if (_domainEventDispatcher is not null && domainEvents.Count > 0)
+        if (domainEvents.Count > 0)
         {
             await _domainEventDispatcher.DispatchAsync(domainEvents, cancellationToken);
         }
