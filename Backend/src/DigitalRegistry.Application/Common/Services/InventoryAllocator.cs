@@ -1,6 +1,7 @@
 using DigitalRegistry.Application.Common.Interfaces;
 using DigitalRegistry.Application.Common.Models;
 using DigitalRegistry.Domain.Entities;
+using DigitalRegistry.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace DigitalRegistry.Application.Common.Services;
@@ -17,10 +18,13 @@ namespace DigitalRegistry.Application.Common.Services;
 /// something the kitchen can no longer make, and a guest could order it.
 /// </para>
 /// </remarks>
-public sealed class InventoryAllocator(IDigitalRegistryDbContext context) : IInventoryAllocator
+public sealed class InventoryAllocator(
+    IDigitalRegistryDbContext context,
+    IDateTimeService dateTime) : IInventoryAllocator
 {
     public async Task<Result<IReadOnlyCollection<Guid>>> DeductAsync(
         IReadOnlyDictionary<Guid, int> servingsByMenuItemId,
+        Guid? orderId = null,
         CancellationToken cancellationToken = default)
     {
         if (servingsByMenuItemId.Count == 0)
@@ -61,8 +65,12 @@ public sealed class InventoryAllocator(IDigitalRegistryDbContext context) : IInv
                      .Select(requirement => requirement.Ingredient)
                      .DistinctBy(ingredient => ingredient.Id))
         {
+            var quantity = demandByIngredient[ingredient.Id];
+
             // Raises IngredientLowStockDomainEvent when this takes it to or below its threshold.
-            ingredient.Deduct(demandByIngredient[ingredient.Id]);
+            ingredient.Deduct(quantity);
+
+            Record(ingredient, StockMovementType.Sale, -quantity, orderId);
         }
 
         return Result<IReadOnlyCollection<Guid>>.Success(demandByIngredient.Keys.ToArray());
@@ -70,6 +78,7 @@ public sealed class InventoryAllocator(IDigitalRegistryDbContext context) : IInv
 
     public async Task<IReadOnlyCollection<Guid>> ReturnAsync(
         IReadOnlyDictionary<Guid, int> servingsByMenuItemId,
+        Guid? orderId = null,
         CancellationToken cancellationToken = default)
     {
         if (servingsByMenuItemId.Count == 0)
@@ -78,16 +87,52 @@ public sealed class InventoryAllocator(IDigitalRegistryDbContext context) : IInv
         }
 
         var requirements = await LoadRequirementsAsync(servingsByMenuItemId.Keys, cancellationToken);
-        var returnedIngredientIds = new HashSet<Guid>();
+
+        // Summed per ingredient before anything moves, for the same reason deduction is: two menu
+        // items on the same tab may draw on one ingredient, and the ledger should show one movement
+        // for what came back rather than two that have to be added up to make sense.
+        var returnByIngredient = new Dictionary<Guid, (Ingredient Ingredient, decimal Quantity)>();
 
         foreach (var requirement in requirements)
         {
             var servings = servingsByMenuItemId[requirement.MenuItemId];
-            requirement.Ingredient.Restock(requirement.QuantityRequired * servings);
-            returnedIngredientIds.Add(requirement.Ingredient.Id);
+            var quantity = requirement.QuantityRequired * servings;
+            var id = requirement.Ingredient.Id;
+
+            returnByIngredient[id] = returnByIngredient.TryGetValue(id, out var running)
+                ? (running.Ingredient, running.Quantity + quantity)
+                : (requirement.Ingredient, quantity);
         }
 
-        return returnedIngredientIds;
+        foreach (var (ingredient, quantity) in returnByIngredient.Values)
+        {
+            ingredient.Restock(quantity);
+            Record(ingredient, StockMovementType.Return, quantity, orderId);
+        }
+
+        return returnByIngredient.Keys.ToArray();
+    }
+
+    /// <summary>
+    /// Writes one ledger line for a movement that has just been applied.
+    /// </summary>
+    /// <remarks>
+    /// Called after the ingredient has been changed, so the balance recorded is the one that
+    /// resulted. No user is attributed: a sale or a return is driven by the order, which the movement
+    /// already points at.
+    /// </remarks>
+    private void Record(Ingredient ingredient, StockMovementType type, decimal signedQuantity, Guid? orderId)
+    {
+        context.StockMovements.Add(new StockMovement
+        {
+            RestaurantId = ingredient.RestaurantId,
+            IngredientId = ingredient.Id,
+            Type = type,
+            Quantity = signedQuantity,
+            BalanceAfter = ingredient.StockQuantity,
+            OrderId = orderId,
+            OccurredAtUtc = dateTime.UtcNow
+        });
     }
 
     public async Task RefreshMenuAvailabilityAsync(

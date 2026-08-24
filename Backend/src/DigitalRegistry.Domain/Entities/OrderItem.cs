@@ -6,8 +6,11 @@ namespace DigitalRegistry.Domain.Entities;
 /// <summary>
 /// One line on an order.
 /// </summary>
-public class OrderItem : BaseEntity
+public class OrderItem : BaseEntity, IRestaurantScoped
 {
+    /// <inheritdoc />
+    public Guid RestaurantId { get; set; }
+
     public Guid OrderId { get; set; }
 
     public Guid MenuItemId { get; set; }

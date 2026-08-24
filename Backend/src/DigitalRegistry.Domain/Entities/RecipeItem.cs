@@ -5,8 +5,11 @@ namespace DigitalRegistry.Domain.Entities;
 /// <summary>
 /// One line of a menu item's recipe: how much of an ingredient a single serving consumes.
 /// </summary>
-public class RecipeItem : BaseEntity
+public class RecipeItem : BaseEntity, IRestaurantScoped
 {
+    /// <inheritdoc />
+    public Guid RestaurantId { get; set; }
+
     public Guid MenuItemId { get; set; }
 
     public Guid IngredientId { get; set; }

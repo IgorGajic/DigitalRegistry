@@ -1,10 +1,15 @@
+using DigitalRegistry.Api.Shared.Controllers;
 using DigitalRegistry.Application.Common.Security;
-using DigitalRegistry.Application.Features.Orders;
 using DigitalRegistry.Application.Features.Orders.Commands.CreateGuestQrOrder;
 using DigitalRegistry.Application.Features.Orders.Commands.CreateOrder;
 using DigitalRegistry.Application.Features.Orders.Commands.ProcessPayment;
 using DigitalRegistry.Application.Features.Orders.Commands.UpdateOrderItem;
+using DigitalRegistry.Application.Features.Orders.Commands.VoidOpenOrder;
+using DigitalRegistry.Application.Features.Orders.Commands.VoidOrderItem;
+using DigitalRegistry.Application.Features.Orders.Commands.VoidPaidOrder;
 using DigitalRegistry.Application.Features.Orders.Queries.GetOrderById;
+using DigitalRegistry.Application.Features.Orders.Queries.GetReceipt;
+using DigitalRegistry.Application.Features.Orders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -120,4 +125,79 @@ public class OrdersController : ApiControllerBase
 
         return ToActionResult(await Sender.Send(command, cancellationToken));
     }
+
+    /// <summary>Everything needed to print the bill.</summary>
+    /// <remarks>
+    /// A simulation, not a fiscal receipt: no tax authority has seen it and no fiscal device produced
+    /// it. A reversed bill is marked as such on the copy, so it cannot be passed off as a valid one.
+    /// </remarks>
+    /// <response code="200">The bill.</response>
+    /// <response code="404">No order with that id.</response>
+    [HttpGet("{id:guid}/receipt")]
+    [Authorize(Policy = AuthorizationPolicies.ProcessPayment)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ReceiptDto))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+    public async Task<ActionResult> GetReceipt(Guid id, CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new GetReceiptQuery(id), cancellationToken));
+
+    /// <summary>Cancels part or all of a line on a running tab and returns what it consumed to stock.</summary>
+    /// <remarks>
+    /// The only way to take something off a tab. A reason is required, and every use is recorded
+    /// against the member of staff who performed it for the owner's void report.
+    /// </remarks>
+    /// <response code="200">What the cancellation took off the bill.</response>
+    /// <response code="404">No such order, or the line is not on it.</response>
+    /// <response code="409">The order is closed; a settled bill is reversed instead.</response>
+    [HttpPost("{id:guid}/items/{itemId:guid}/void")]
+    [Authorize(Policy = AuthorizationPolicies.VoidOrder)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VoidResultDto))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ProblemDetails))]
+    public async Task<ActionResult> VoidItem(
+        Guid id,
+        Guid itemId,
+        [FromBody] VoidRequest request,
+        CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(
+            new VoidOrderItemCommand(id, itemId, request.Reason, request.Quantity),
+            cancellationToken));
+
+    /// <summary>Cancels an unpaid tab in full, returns its stock and frees the table.</summary>
+    /// <response code="409">The bill has been settled; reverse it instead.</response>
+    [HttpPost("{id:guid}/void")]
+    [Authorize(Policy = AuthorizationPolicies.VoidOrder)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VoidResultDto))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ProblemDetails))]
+    public async Task<ActionResult> VoidOpen(
+        Guid id,
+        [FromBody] VoidRequest request,
+        CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new VoidOpenOrderCommand(id, request.Reason), cancellationToken));
+
+    /// <summary>Reverses a settled bill, writing a counter-transaction and returning its stock.</summary>
+    /// <remarks>
+    /// Manager or owner only. This is the one void a waiter cannot perform, because it takes money
+    /// back out of the day's takings.
+    /// </remarks>
+    /// <response code="409">The order was never paid, or has already been reversed.</response>
+    [HttpPost("{id:guid}/reverse")]
+    [Authorize(Policy = AuthorizationPolicies.ApproveVoid)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(VoidResultDto))]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ProblemDetails))]
+    public async Task<ActionResult> Reverse(
+        Guid id,
+        [FromBody] VoidRequest request,
+        CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new VoidPaidOrderCommand(id, request.Reason), cancellationToken));
 }
+
+/// <summary>
+/// The justification a void requires, and optionally how much of a line to cancel.
+/// </summary>
+/// <param name="Reason">Why the cancellation is being made. Recorded against the member of staff.</param>
+/// <param name="Quantity">
+/// Servings to cancel. Omit to cancel the whole line; ignored for whole-order voids.
+/// </param>
+public record VoidRequest(string Reason, int? Quantity = null);

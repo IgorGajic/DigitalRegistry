@@ -10,8 +10,14 @@ namespace DigitalRegistry.Domain.ValueObjects;
 /// </remarks>
 public readonly record struct Money
 {
-    /// <summary>Currency assumed when none is stated. Change here to re-denominate the system.</summary>
-    public const string DefaultCurrencyCode = "EUR";
+    /// <summary>
+    /// Currency assumed when none is stated, and the default for a newly created restaurant.
+    /// </summary>
+    /// <remarks>
+    /// Each restaurant carries its own <c>CurrencyCode</c>, so this is only the fallback; change it
+    /// to re-denominate venues created from here on, not existing ones.
+    /// </remarks>
+    public const string DefaultCurrencyCode = "RSD";
 
     public Money(decimal amount, string currencyCode = DefaultCurrencyCode)
     {

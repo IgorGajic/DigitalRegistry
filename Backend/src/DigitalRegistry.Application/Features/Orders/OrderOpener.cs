@@ -67,14 +67,21 @@ internal sealed class OrderOpener(
             .GroupBy(line => line.MenuItemId)
             .ToDictionary(group => group.Key, group => group.Sum(line => line.Quantity));
 
-        var deduction = await inventoryAllocator.DeductAsync(servingsByMenuItemId, cancellationToken);
+        // Built before the stock moves, so the ledger movements can name the order that caused them.
+        // Nothing is written yet: the order is only handed to the context once the deduction succeeds,
+        // so a shortage still leaves no trace.
+        var order = Order.OpenForTable(table, waiterId);
+
+        var deduction = await inventoryAllocator.DeductAsync(
+            servingsByMenuItemId,
+            order.Id,
+            cancellationToken);
 
         if (!deduction.Succeeded)
         {
             return Result<OrderDto>.Failure(deduction.ErrorType, deduction.Errors.ToArray());
         }
 
-        var order = Order.OpenForTable(table, waiterId);
         context.Orders.Add(order);
 
         foreach (var line in requestedLines)

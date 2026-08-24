@@ -11,6 +11,11 @@ namespace DigitalRegistry.Application.Common.Models;
 /// <param name="Email">The user's email, or null for an anonymous table session.</param>
 /// <param name="FullName">Display name, or null for an anonymous table session.</param>
 /// <param name="Role">The role encoded in the token.</param>
+/// <param name="RestaurantId">
+/// The restaurant every request made with this token is confined to. Null only for platform
+/// administrators, who belong to no restaurant.
+/// </param>
+/// <param name="RestaurantSlug">The restaurant's sign-in code, for display.</param>
 /// <param name="TableId">
 /// Set only on tokens minted by scanning a table QR code, and pins the session to that table.
 /// </param>
@@ -21,4 +26,6 @@ public record AuthenticationResult(
     string? Email,
     string? FullName,
     UserRole Role,
+    Guid? RestaurantId = null,
+    string? RestaurantSlug = null,
     Guid? TableId = null);

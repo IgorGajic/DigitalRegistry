@@ -1,6 +1,6 @@
+using DigitalRegistry.Api.Shared.Controllers;
 using DigitalRegistry.Application.Common.Models;
 using DigitalRegistry.Application.Common.Security;
-using DigitalRegistry.Application.Features.Tables;
 using DigitalRegistry.Application.Features.Tables.Commands.CreateTable;
 using DigitalRegistry.Application.Features.Tables.Commands.DeleteTable;
 using DigitalRegistry.Application.Features.Tables.Commands.GenerateQrCode;
@@ -8,6 +8,7 @@ using DigitalRegistry.Application.Features.Tables.Commands.InitializeTableSessio
 using DigitalRegistry.Application.Features.Tables.Commands.UpdateTable;
 using DigitalRegistry.Application.Features.Tables.Queries.GetAvailableTables;
 using DigitalRegistry.Application.Features.Tables.Queries.GetTableById;
+using DigitalRegistry.Application.Features.Tables;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

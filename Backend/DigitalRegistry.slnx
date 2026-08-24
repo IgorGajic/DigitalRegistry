@@ -3,7 +3,9 @@
     <Project Path="src/DigitalRegistry.Domain/DigitalRegistry.Domain.csproj" />
     <Project Path="src/DigitalRegistry.Application/DigitalRegistry.Application.csproj" />
     <Project Path="src/DigitalRegistry.Infrastructure/DigitalRegistry.Infrastructure.csproj" />
+    <Project Path="src/DigitalRegistry.Api.Shared/DigitalRegistry.Api.Shared.csproj" />
     <Project Path="src/DigitalRegistry.Api/DigitalRegistry.Api.csproj" />
+    <Project Path="src/DigitalRegistry.Master.Api/DigitalRegistry.Master.Api.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DigitalRegistry.Domain.UnitTests/DigitalRegistry.Domain.UnitTests.csproj" />

@@ -6,6 +6,10 @@ public class LoginCommandValidator : AbstractValidator<LoginCommand>
 {
     public LoginCommandValidator()
     {
+        RuleFor(command => command.RestaurantSlug)
+            .NotEmpty().WithMessage("Restaurant code is required.")
+            .MaximumLength(64);
+
         RuleFor(command => command.Email)
             .NotEmpty().WithMessage("Email is required.")
             .EmailAddress().WithMessage("Email must be a valid address.")

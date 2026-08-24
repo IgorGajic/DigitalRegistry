@@ -33,7 +33,10 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         // Finding the open tab for a table is the single most frequent order query.
         builder.HasIndex(order => new { order.TableId, order.Status });
-        builder.HasIndex(order => order.CreatedAt);
+        // Scans across all tables — the floor plan and the day's takings — are always confined to
+        // one restaurant, so that column leads.
+        builder.HasIndex(order => new { order.RestaurantId, order.CreatedAt });
+        builder.HasIndex(order => new { order.RestaurantId, order.Status });
 
         builder.Ignore(order => order.Total);
         builder.Ignore(order => order.PlacedByGuest);

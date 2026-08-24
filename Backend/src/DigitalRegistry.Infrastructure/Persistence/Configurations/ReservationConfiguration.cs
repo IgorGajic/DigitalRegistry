@@ -33,7 +33,7 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
 
         // "My reservations" and the daily service sheet.
         builder.HasIndex(reservation => new { reservation.GuestId, reservation.StartTime });
-        builder.HasIndex(reservation => reservation.StartTime);
+        builder.HasIndex(reservation => new { reservation.RestaurantId, reservation.StartTime });
 
         builder.Ignore(reservation => reservation.TimeRange);
         builder.Ignore(reservation => reservation.BlocksTable);

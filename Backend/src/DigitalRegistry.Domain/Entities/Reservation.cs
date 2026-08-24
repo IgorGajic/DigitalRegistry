@@ -9,8 +9,11 @@ namespace DigitalRegistry.Domain.Entities;
 /// <summary>
 /// A guest's claim on a table for a period of time.
 /// </summary>
-public class Reservation : AggregateRoot
+public class Reservation : AggregateRoot, IRestaurantScoped
 {
+    /// <inheritdoc />
+    public Guid RestaurantId { get; set; }
+
     public Guid GuestId { get; set; }
 
     public Guid TableId { get; set; }

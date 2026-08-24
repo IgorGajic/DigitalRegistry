@@ -6,6 +6,10 @@ public class RegisterGuestCommandValidator : AbstractValidator<RegisterGuestComm
 {
     public RegisterGuestCommandValidator()
     {
+        RuleFor(command => command.RestaurantSlug)
+            .NotEmpty().WithMessage("Restaurant code is required.")
+            .MaximumLength(64);
+
         RuleFor(command => command.Email)
             .NotEmpty().WithMessage("Email is required.")
             .EmailAddress().WithMessage("Email must be a valid address.")

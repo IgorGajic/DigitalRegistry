@@ -7,8 +7,11 @@ namespace DigitalRegistry.Domain.Entities;
 /// <summary>
 /// Something a guest can order, along with the recipe that says what it consumes.
 /// </summary>
-public class MenuItem : AggregateRoot
+public class MenuItem : AggregateRoot, IRestaurantScoped
 {
+    /// <inheritdoc />
+    public Guid RestaurantId { get; set; }
+
     public string Name { get; set; } = string.Empty;
 
     public string Category { get; set; } = string.Empty;

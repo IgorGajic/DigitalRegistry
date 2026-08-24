@@ -10,11 +10,13 @@ public class TableConfiguration : IEntityTypeConfiguration<Table>
     {
         builder.HasKey(table => table.Id);
 
-        // Two tables cannot share a floor number.
-        builder.HasIndex(table => table.TableNumber)
+        // Two tables in the same restaurant cannot share a floor number; different restaurants are
+        // free to both have a table 1.
+        builder.HasIndex(table => new { table.RestaurantId, table.TableNumber })
             .IsUnique();
 
-        // A QR token is the sole credential a guest presents, so it must resolve to one table.
+        // A QR token is the sole credential a guest presents, and it is resolved before any tenant is
+        // known, so it must be unique platform-wide rather than per restaurant.
         builder.HasIndex(table => table.QrCodeToken)
             .IsUnique();
 
@@ -24,10 +26,19 @@ public class TableConfiguration : IEntityTypeConfiguration<Table>
         builder.Property(table => table.IsActive)
             .HasDefaultValue(true);
 
+        builder.Property(table => table.Shape)
+            .HasConversion<int>()
+            .IsRequired();
+
+        // The floor screen loads one room at a time.
+        builder.HasIndex(table => table.RoomId);
+
         builder.ToTable(table =>
         {
             table.HasCheckConstraint("CK_Table_Capacity_Positive", "[Capacity] > 0");
             table.HasCheckConstraint("CK_Table_Number_Positive", "[TableNumber] > 0");
+            table.HasCheckConstraint("CK_Table_Size_Positive", "[Width] > 0 AND [Height] > 0");
+            table.HasCheckConstraint("CK_Table_Rotation_Range", "[Rotation] >= 0 AND [Rotation] < 360");
         });
     }
 }

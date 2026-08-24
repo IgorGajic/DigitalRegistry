@@ -8,12 +8,15 @@ namespace DigitalRegistry.Infrastructure.Identity;
 /// </summary>
 internal interface IJwtTokenGenerator
 {
-    /// <summary>Issues a token for a signed-in user, carrying their id, email and role.</summary>
-    (string Token, DateTime ExpiresAtUtc) GenerateForUser(ApplicationUser user);
+    /// <summary>
+    /// Issues a token for a signed-in user, carrying their id, email, role and restaurant.
+    /// </summary>
+    /// <param name="restaurantSlug">Carried for display only; the id is what confines the session.</param>
+    (string Token, DateTime ExpiresAtUtc) GenerateForUser(ApplicationUser user, string? restaurantSlug = null);
 
     /// <summary>
-    /// Issues an anonymous token scoped to a single table, carrying the guest role and the table id
-    /// but no user identity.
+    /// Issues an anonymous token scoped to a single table, carrying the guest role, the restaurant
+    /// and the table id but no user identity.
     /// </summary>
-    (string Token, DateTime ExpiresAtUtc) GenerateForTableSession(Guid tableId, int tableNumber);
+    (string Token, DateTime ExpiresAtUtc) GenerateForTableSession(Guid restaurantId, Guid tableId, int tableNumber);
 }

@@ -28,19 +28,15 @@ public class GetAvailableTablesQueryHandler(
                 table.TableNumber,
                 table.Capacity,
 
-                // Mirrors ShiftTimeRange.Overlaps. It has to be restated as an inline predicate
-                // because EF Core must translate the comparison into SQL and cannot call into the
-                // value object to do it.
-                IsReserved = table.Reservations.Any(reservation =>
-                    (reservation.Status == ReservationStatus.Pending
-                     || reservation.Status == ReservationStatus.Confirmed)
-                    && reservation.StartTime < request.To
-                    && request.From < reservation.EndTime),
+                // The overlap test mirrors ShiftTimeRange.Overlaps. It has to be restated as an inline
+                // predicate because EF Core must translate the comparison into SQL and cannot call
+                // into the value object to do it.
+                IsReserved = table.Reservations.AsQueryable()
+                    .Where(TableStatusRules.HoldsTable)
+                    .Any(reservation =>
+                        reservation.StartTime < request.To && request.From < reservation.EndTime),
 
-                HasOpenOrder = table.Orders.Any(order =>
-                    order.Status == OrderStatus.Open
-                    || order.Status == OrderStatus.InPreparation
-                    || order.Status == OrderStatus.Served)
+                HasOpenOrder = table.Orders.AsQueryable().Any(TableStatusRules.IsOpenTab)
             })
             .OrderBy(table => table.TableNumber)
             .ToListAsync(cancellationToken);
@@ -50,20 +46,13 @@ public class GetAvailableTablesQueryHandler(
                 table.Id,
                 table.TableNumber,
                 table.Capacity,
-                DetermineStatus(table.IsReserved, table.HasOpenOrder && periodIncludesNow)))
+                TableStatusRules.Determine(
+                    isActive: true,
+                    isOccupied: table.HasOpenOrder && periodIncludesNow,
+                    isReserved: table.IsReserved)))
             .Where(table => request.IncludeUnavailable || table.Status == TableStatus.Available)
             .ToList();
 
         return Result<IReadOnlyList<TableAvailabilityDto>>.Success(availability);
     }
-
-    /// <summary>
-    /// An occupied table is reported as occupied even if it is also reserved, because that is the
-    /// condition a member of staff has to deal with first.
-    /// </summary>
-    private static TableStatus DetermineStatus(bool isReserved, bool isOccupied) => isOccupied
-        ? TableStatus.Occupied
-        : isReserved
-            ? TableStatus.Reserved
-            : TableStatus.Available;
 }

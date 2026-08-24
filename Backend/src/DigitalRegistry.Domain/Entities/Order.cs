@@ -9,8 +9,11 @@ namespace DigitalRegistry.Domain.Entities;
 /// <summary>
 /// A tab opened against a table, either by a waiter or by a guest scanning the table's QR code.
 /// </summary>
-public class Order : AggregateRoot
+public class Order : AggregateRoot, IRestaurantScoped
 {
+    /// <inheritdoc />
+    public Guid RestaurantId { get; set; }
+
     public Guid TableId { get; set; }
 
     /// <summary>Null when the guest placed the order themselves via the table QR code.</summary>
@@ -55,6 +58,9 @@ public class Order : AggregateRoot
 
         var order = new Order
         {
+            // Taken from the table rather than from the ambient tenant so the aggregate is
+            // self-consistent even before the DbContext sees it.
+            RestaurantId = table.RestaurantId,
             TableId = table.Id,
             Table = table,
             WaiterId = waiterId,
@@ -92,6 +98,7 @@ public class Order : AggregateRoot
 
         var item = new OrderItem
         {
+            RestaurantId = RestaurantId,
             OrderId = Id,
             MenuItemId = menuItem.Id,
             MenuItem = menuItem,
@@ -107,20 +114,24 @@ public class Order : AggregateRoot
     }
 
     /// <summary>
-    /// Changes a line's quantity.
+    /// Increases a line's quantity — a guest asking for another round of the same thing.
     /// </summary>
-    /// <returns>
-    /// The change in quantity: positive when more was ordered, negative when reduced. The caller
-    /// uses this to deduct or return exactly the difference in ingredient stock.
-    /// </returns>
-    public int ChangeItemQuantity(OrderItem item, int newQuantity)
+    /// <remarks>
+    /// Only ever upwards. Reducing a line takes money off the bill and consumed stock back out of a
+    /// guest's order, which is a void: it needs a reason and an audit record, so it goes through
+    /// <see cref="VoidItem"/> instead. Allowing a quiet decrease here would be a way around the void
+    /// report that nobody would ever see.
+    /// </remarks>
+    /// <returns>How many servings were added, so the caller deducts exactly the difference.</returns>
+    public int IncreaseItemQuantity(OrderItem item, int newQuantity)
     {
         EnsureEditable();
         EnsureOwnsItem(item);
 
-        if (newQuantity <= 0)
+        if (newQuantity <= item.Quantity)
         {
-            throw new DomainException("Quantity must be greater than zero; remove the line instead.");
+            throw new DomainException(
+                $"A line can only be increased here; cancel servings through a void instead.");
         }
 
         var delta = newQuantity - item.Quantity;
@@ -142,20 +153,116 @@ public class Order : AggregateRoot
     }
 
     /// <summary>
-    /// Removes a line.
+    /// Cancels part or all of a line.
     /// </summary>
-    /// <returns>The quantity removed, so the caller can return the corresponding stock.</returns>
-    public int RemoveItem(OrderItem item)
+    /// <remarks>
+    /// The one way anything comes off a running tab. <see cref="ChangeItemQuantity"/> deliberately
+    /// only increases and there is no plain removal, because a reduction that left no record would
+    /// make the void report — the control this all exists for — worthless.
+    /// </remarks>
+    /// <param name="quantity">Servings to cancel. Cancelling them all removes the line.</param>
+    /// <returns>What the cancellation takes off the bill, at the price the line captured.</returns>
+    public Money VoidItem(OrderItem item, int quantity)
     {
         EnsureEditable();
         EnsureOwnsItem(item);
 
-        var removedQuantity = item.Quantity;
-        OrderItems.Remove(item);
+        if (quantity <= 0)
+        {
+            throw new DomainException("Cancel at least one serving.");
+        }
 
-        RaiseDomainEvent(new OrderItemUpdatedDomainEvent(Id, item.Id, item.MenuItemId, removedQuantity, Removed: true));
+        if (quantity > item.Quantity)
+        {
+            throw new DomainException(
+                $"Only {item.Quantity} of this line remain; {quantity} cannot be cancelled.");
+        }
 
-        return removedQuantity;
+        var amount = new Money(item.UnitPrice) * quantity;
+        var removesLine = quantity == item.Quantity;
+
+        if (removesLine)
+        {
+            OrderItems.Remove(item);
+        }
+        else
+        {
+            item.Quantity -= quantity;
+        }
+
+        RaiseDomainEvent(new OrderItemUpdatedDomainEvent(
+            Id,
+            item.Id,
+            item.MenuItemId,
+            removesLine ? quantity : item.Quantity,
+            Removed: removesLine));
+
+        return amount.Round();
+    }
+
+    /// <summary>
+    /// Cancels a tab that was never paid, freeing the table.
+    /// </summary>
+    /// <returns>What the tab would have come to.</returns>
+    public Money VoidOpen()
+    {
+        if (IsClosed || Status == OrderStatus.Voided)
+        {
+            throw new DomainException($"An order that is already {Status} cannot be cancelled.");
+        }
+
+        var total = Total;
+
+        Status = OrderStatus.Cancelled;
+        RaiseDomainEvent(new OrderVoidedDomainEvent(Id, TableId, total.Amount, WasPaid: false));
+
+        return total;
+    }
+
+    /// <summary>
+    /// Reverses a settled bill.
+    /// </summary>
+    /// <remarks>
+    /// Produces a counter-transaction carrying the negative of what was taken, rather than deleting or
+    /// amending the payment. The original stays on file, summing the column still yields the true
+    /// takings, and the reversal is visible to anyone reconciling the till.
+    /// </remarks>
+    /// <param name="original">The payment being backed out.</param>
+    /// <param name="processedByUserId">The manager or owner authorising it.</param>
+    public Transaction Reverse(Transaction original, Guid processedByUserId)
+    {
+        if (Status != OrderStatus.Paid)
+        {
+            throw new DomainException($"Only a paid order can be reversed; this one is {Status}.");
+        }
+
+        if (original.OrderId != Id)
+        {
+            throw new DomainException("That payment does not belong to this order.");
+        }
+
+        if (original.IsReversal)
+        {
+            throw new DomainException("A reversal cannot itself be reversed.");
+        }
+
+        var reversal = new Transaction
+        {
+            RestaurantId = RestaurantId,
+            OrderId = Id,
+            Order = this,
+            ProcessedByWaiterId = processedByUserId,
+            Amount = -original.Amount,
+            PaymentMethod = original.PaymentMethod,
+            TransactionDate = DateTime.UtcNow,
+            ReversesTransactionId = original.Id,
+            Reverses = original
+        };
+
+        Status = OrderStatus.Voided;
+        RaiseDomainEvent(new OrderVoidedDomainEvent(Id, TableId, original.Amount, WasPaid: true));
+
+        return reversal;
     }
 
     public void MarkInPreparation() => TransitionTo(OrderStatus.InPreparation, OrderStatus.Open);
@@ -189,6 +296,7 @@ public class Order : AggregateRoot
 
         var transaction = new Transaction
         {
+            RestaurantId = RestaurantId,
             OrderId = Id,
             Order = this,
             ProcessedByWaiterId = processedByWaiterId,

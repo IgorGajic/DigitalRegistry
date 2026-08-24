@@ -1,0 +1,108 @@
+@use '@angular/material' as mat;
+
+// Angular Material 21 theming: one call generates the whole token set from a palette. The `ng add`
+// schematic that would have written this fails on this version, so it is written by hand.
+html {
+  color-scheme: light;
+
+  @include mat.theme((
+    color: mat.$azure-palette,
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+:root {
+  // The till runs all day on one screen, so the palette is deliberately quiet and the table states
+  // are the only saturated colour on it.
+  --dr-free: #2e7d32;
+  --dr-free-bg: #e8f5e9;
+  --dr-occupied: #c62828;
+  --dr-occupied-bg: #ffebee;
+  --dr-reserved: #ef6c00;
+  --dr-reserved-bg: #fff3e0;
+  --dr-out-of-service: #616161;
+  --dr-out-of-service-bg: #eeeeee;
+
+  --dr-gap: 16px;
+  --dr-radius: 10px;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface);
+}
+
+// Staff work standing at a screen, often a touchscreen, so nothing is allowed to be small.
+.dr-page {
+  padding: var(--dr-gap);
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.dr-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.dr-muted {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.dr-empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.dr-numeric {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media print {
+  // Printing a bill should produce the bill, not the application around it.
+  .dr-no-print {
+    display: none !important;
+  }
+
+  // The bill is shown in a dialog, which the CDK renders in a fixed, scrollable overlay appended to
+  // the body — printed as-is that yields one clipped page over a screenshot of the till. So while a
+  // receipt is on screen (`:has(#dr-receipt)`), everything except the overlay is hidden and the
+  // overlay is unpinned back into normal flow. Scoped to the receipt so other dialogs are unaffected.
+  body:has(#dr-receipt) > *:not(.cdk-overlay-container) {
+    display: none !important;
+  }
+
+  body:has(#dr-receipt) {
+    .cdk-overlay-backdrop {
+      display: none !important;
+    }
+
+    .cdk-overlay-container,
+    .cdk-global-overlay-wrapper,
+    .cdk-overlay-pane {
+      position: static !important;
+      display: block !important;
+      max-width: none !important;
+      max-height: none !important;
+      width: auto !important;
+    }
+
+    .mat-mdc-dialog-container,
+    .mat-mdc-dialog-surface,
+    .mat-mdc-dialog-content {
+      overflow: visible !important;
+      max-height: none !important;
+      box-shadow: none !important;
+      background: #fff !important;
+    }
+  }
+
+  @page {
+    margin: 8mm;
+  }
+}

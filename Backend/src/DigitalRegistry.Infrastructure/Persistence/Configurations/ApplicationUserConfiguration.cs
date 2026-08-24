@@ -20,8 +20,16 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
             .HasConversion<int>()
             .IsRequired();
 
-        // Staff listings and the "is this user a waiter?" check both filter on role.
-        builder.HasIndex(user => user.Role);
+        builder.HasOne(user => user.Restaurant)
+            .WithMany()
+            .HasForeignKey(user => user.RestaurantId)
+            // Refuse to delete a restaurant that still has accounts; the master application
+            // deactivates a venue rather than erasing who worked there.
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Staff listings filter by restaurant and role together. Null RestaurantId — the platform
+        // administrators — sits at one end of the index and stays cheap to find.
+        builder.HasIndex(user => new { user.RestaurantId, user.Role });
 
         builder.Ignore(user => user.FullName);
     }

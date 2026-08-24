@@ -12,6 +12,7 @@ namespace DigitalRegistry.Application.Features.Auth.Commands.RegisterGuest;
 /// separately.
 /// </remarks>
 public record RegisterGuestCommand(
+    string RestaurantSlug,
     string Email,
     string Password,
     string FirstName,

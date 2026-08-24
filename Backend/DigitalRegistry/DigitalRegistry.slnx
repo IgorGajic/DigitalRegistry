@@ -1,6 +1,0 @@
-<Solution>
-  <Project Path="../DigitalRegistry.Application/DigitalRegistry.Application.csproj" />
-  <Project Path="../DigitalRegistry.Domain/DigitalRegistry.Domain.csproj" />
-  <Project Path="../DigitalRegistry.Infrastructure/DigitalRegistry.Infrastructure.csproj" />
-  <Project Path="DigitalRegistry.API.csproj" />
-</Solution>

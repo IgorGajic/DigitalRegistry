@@ -11,6 +11,7 @@ public class RegisterGuestCommandHandler(IIdentityService identityService)
         RegisterGuestCommand request,
         CancellationToken cancellationToken) =>
         identityService.RegisterGuestAsync(
+            request.RestaurantSlug,
             request.Email,
             request.Password,
             request.FirstName,

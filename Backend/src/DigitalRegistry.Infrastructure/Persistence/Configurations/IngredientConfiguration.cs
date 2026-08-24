@@ -23,18 +23,25 @@ public class IngredientConfiguration : IEntityTypeConfiguration<Ingredient>
             .HasPrecision(18, 3)
             .IsRequired();
 
+        builder.Property(ingredient => ingredient.AveragePurchasePrice)
+            .HasPrecision(18, 4)
+            .IsRequired();
+
         builder.Property(ingredient => ingredient.Unit)
             .HasConversion<int>()
             .IsRequired();
 
-        builder.HasIndex(ingredient => ingredient.Name).IsUnique();
+        // Unique within a restaurant, not across the platform: every venue keeps its own store.
+        builder.HasIndex(ingredient => new { ingredient.RestaurantId, ingredient.Name }).IsUnique();
 
         builder.Ignore(ingredient => ingredient.IsLowOnStock);
+        builder.Ignore(ingredient => ingredient.StockValue);
 
         builder.ToTable(table =>
         {
             table.HasCheckConstraint("CK_Ingredient_Stock_NonNegative", "[StockQuantity] >= 0");
             table.HasCheckConstraint("CK_Ingredient_Threshold_NonNegative", "[LowStockThreshold] >= 0");
+            table.HasCheckConstraint("CK_Ingredient_AvgPrice_NonNegative", "[AveragePurchasePrice] >= 0");
         });
     }
 }

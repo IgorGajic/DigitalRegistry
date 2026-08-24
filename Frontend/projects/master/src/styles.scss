@@ -1,0 +1,51 @@
+@use '@angular/material' as mat;
+
+// Deliberately a different hue from the till, so it is obvious at a glance which application is on
+// screen — the two are administered by different people and confusing them would be costly.
+html {
+  color-scheme: light;
+
+  @include mat.theme((
+    color: mat.$violet-palette,
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+:root {
+  --dr-valid: #2e7d32;
+  --dr-expiring: #ef6c00;
+  --dr-expired: #c62828;
+  --dr-suspended: #6a1b9a;
+
+  --dr-gap: 16px;
+  --dr-radius: 10px;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  background: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface);
+}
+
+.dr-page {
+  padding: var(--dr-gap);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.dr-toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.dr-muted {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.dr-numeric {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

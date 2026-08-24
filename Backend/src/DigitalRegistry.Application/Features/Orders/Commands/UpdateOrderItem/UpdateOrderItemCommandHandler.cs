@@ -35,9 +35,8 @@ internal sealed class UpdateOrderItemCommandHandler(
         var outcome = request.Change switch
         {
             OrderItemChange.Add => await AddLineAsync(order, request, cancellationToken),
-            OrderItemChange.ChangeQuantity => await ChangeQuantityAsync(order, request, cancellationToken),
+            OrderItemChange.IncreaseQuantity => await IncreaseQuantityAsync(order, request, cancellationToken),
             OrderItemChange.ChangeNotes => ChangeNotes(order, request),
-            OrderItemChange.Remove => await RemoveLineAsync(order, request, cancellationToken),
             _ => Result.Invalid("Unknown change type.")
         };
 
@@ -73,6 +72,7 @@ internal sealed class UpdateOrderItemCommandHandler(
 
         var deduction = await inventoryAllocator.DeductAsync(
             new Dictionary<Guid, int> { [menuItem.Id] = quantity },
+            order.Id,
             cancellationToken);
 
         if (!deduction.Succeeded)
@@ -80,13 +80,20 @@ internal sealed class UpdateOrderItemCommandHandler(
             return Result.Failure(deduction.ErrorType, deduction.Errors.ToArray());
         }
 
-        order.AddItem(menuItem, quantity, request.Notes);
+        var line = order.AddItem(menuItem, quantity, request.Notes);
+
+        // Handing the line to the set explicitly, not only to the order's collection. BaseEntity
+        // gives every entity its key up front, so a child discovered on an already-tracked parent
+        // looks to EF Core like a row that exists: it issues an UPDATE that matches nothing instead
+        // of an INSERT. The mirror image of removing a line, which also has to reach the set.
+        context.OrderItems.Add(line);
+
         await inventoryAllocator.RefreshMenuAvailabilityAsync(deduction.Value, cancellationToken);
 
         return Result.Success();
     }
 
-    private async Task<Result> ChangeQuantityAsync(
+    private async Task<Result> IncreaseQuantityAsync(
         Order order,
         UpdateOrderItemCommand request,
         CancellationToken cancellationToken)
@@ -97,38 +104,32 @@ internal sealed class UpdateOrderItemCommandHandler(
         }
 
         var newQuantity = request.Quantity!.Value;
-        var difference = newQuantity - line.Quantity;
 
-        if (difference == 0)
+        if (newQuantity == line.Quantity)
         {
             return Result.Success();
         }
 
-        IReadOnlyCollection<Guid> touchedIngredients;
-
-        if (difference > 0)
+        if (newQuantity < line.Quantity)
         {
-            // Only the increase is deducted; what the line already consumed stays consumed.
-            var deduction = await inventoryAllocator.DeductAsync(
-                new Dictionary<Guid, int> { [line.MenuItemId] = difference },
-                cancellationToken);
-
-            if (!deduction.Succeeded)
-            {
-                return Result.Failure(deduction.ErrorType, deduction.Errors.ToArray());
-            }
-
-            touchedIngredients = deduction.Value;
-        }
-        else
-        {
-            touchedIngredients = await inventoryAllocator.ReturnAsync(
-                new Dictionary<Guid, int> { [line.MenuItemId] = -difference },
-                cancellationToken);
+            return Result.Invalid(
+                "This endpoint only increases a line. Cancel servings through a void, which records "
+                + "who did it and why.");
         }
 
-        order.ChangeItemQuantity(line, newQuantity);
-        await inventoryAllocator.RefreshMenuAvailabilityAsync(touchedIngredients, cancellationToken);
+        // Only the increase is deducted; what the line already consumed stays consumed.
+        var deduction = await inventoryAllocator.DeductAsync(
+            new Dictionary<Guid, int> { [line.MenuItemId] = newQuantity - line.Quantity },
+            order.Id,
+            cancellationToken);
+
+        if (!deduction.Succeeded)
+        {
+            return Result.Failure(deduction.ErrorType, deduction.Errors.ToArray());
+        }
+
+        order.IncreaseItemQuantity(line, newQuantity);
+        await inventoryAllocator.RefreshMenuAvailabilityAsync(deduction.Value, cancellationToken);
 
         return Result.Success();
     }
@@ -142,31 +143,6 @@ internal sealed class UpdateOrderItemCommandHandler(
 
         // Notes consume no stock, so nothing to move here.
         order.ChangeItemNotes(line, request.Notes);
-
-        return Result.Success();
-    }
-
-    private async Task<Result> RemoveLineAsync(
-        Order order,
-        UpdateOrderItemCommand request,
-        CancellationToken cancellationToken)
-    {
-        if (FindLine(order, request.OrderItemId!.Value) is not { } line)
-        {
-            return Result.NotFound($"Line {request.OrderItemId} is not on this order.");
-        }
-
-        var menuItemId = line.MenuItemId;
-        var removedQuantity = order.RemoveItem(line);
-
-        // Removing the line from the collection is not enough on its own: the row has to go too.
-        context.OrderItems.Remove(line);
-
-        var returned = await inventoryAllocator.ReturnAsync(
-            new Dictionary<Guid, int> { [menuItemId] = removedQuantity },
-            cancellationToken);
-
-        await inventoryAllocator.RefreshMenuAvailabilityAsync(returned, cancellationToken);
 
         return Result.Success();
     }

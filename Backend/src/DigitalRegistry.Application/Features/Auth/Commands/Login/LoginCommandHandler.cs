@@ -8,5 +8,5 @@ public class LoginCommandHandler(IIdentityService identityService)
     : IRequestHandler<LoginCommand, Result<AuthenticationResult>>
 {
     public Task<Result<AuthenticationResult>> Handle(LoginCommand request, CancellationToken cancellationToken) =>
-        identityService.LoginAsync(request.Email, request.Password, cancellationToken);
+        identityService.LoginAsync(request.RestaurantSlug, request.Email, request.Password, cancellationToken);
 }

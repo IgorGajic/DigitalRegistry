@@ -14,7 +14,20 @@ namespace DigitalRegistry.Application.Common.Interfaces;
 /// </remarks>
 public interface IDigitalRegistryDbContext
 {
+    /// <summary>
+    /// The tenants themselves. Not restaurant-scoped, so no global query filter applies: sign-in has
+    /// to find a restaurant by its slug before any tenant is known.
+    /// </summary>
+    DbSet<Restaurant> Restaurants { get; }
+
+    /// <summary>Licence terms, platform-wide. Not restaurant-scoped; see <see cref="Restaurants"/>.</summary>
+    DbSet<License> Licenses { get; }
+
+    DbSet<LicensePayment> LicensePayments { get; }
+
     DbSet<ApplicationUser> Users { get; }
+
+    DbSet<Room> Rooms { get; }
 
     DbSet<Table> Tables { get; }
 
@@ -22,17 +35,30 @@ public interface IDigitalRegistryDbContext
 
     DbSet<Shift> Shifts { get; }
 
+    DbSet<ShiftTemplate> ShiftTemplates { get; }
+
+    DbSet<ShiftAssignment> ShiftAssignments { get; }
+
     DbSet<MenuItem> MenuItems { get; }
 
     DbSet<Ingredient> Ingredients { get; }
 
     DbSet<RecipeItem> RecipeItems { get; }
 
+    /// <summary>Deliveries received into the store, with what they cost.</summary>
+    DbSet<StockEntry> StockEntries { get; }
+
+    /// <summary>The stock ledger. Append-only; see <see cref="StockMovement"/>.</summary>
+    DbSet<StockMovement> StockMovements { get; }
+
     DbSet<Order> Orders { get; }
 
     DbSet<OrderItem> OrderItems { get; }
 
     DbSet<Transaction> Transactions { get; }
+
+    /// <summary>The audit trail of everything cancelled. Append-only; see <see cref="VoidRecord"/>.</summary>
+    DbSet<VoidRecord> VoidRecords { get; }
 
     /// <summary>
     /// Commits the tracked changes and then dispatches any domain events raised by the entities

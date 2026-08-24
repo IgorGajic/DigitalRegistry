@@ -1,7 +1,9 @@
+using DigitalRegistry.Application.Common.Security;
 using DigitalRegistry.Domain.Entities;
 using DigitalRegistry.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalRegistry.Infrastructure.Persistence;
@@ -10,9 +12,15 @@ namespace DigitalRegistry.Infrastructure.Persistence;
 /// Brings a database up to a usable state: Identity roles always, demo content on request.
 /// </summary>
 /// <remarks>
-/// The four roles are structural — every token carries one, so they must exist in any environment.
-/// The demo content is separate and opt-in, because it creates accounts with known passwords and
-/// must never appear in a deployed database.
+/// The roles are structural — every token carries one, so they must exist in any environment. The
+/// demo content is separate and opt-in, because it creates accounts with known passwords and must
+/// never appear in a deployed database.
+/// <para>
+/// This runs at startup, outside any request, so there is no ambient tenant. Every read below
+/// therefore calls <c>IgnoreQueryFilters()</c> — otherwise the "is this already seeded?" checks would
+/// see an empty database and duplicate everything — and every write sets the restaurant explicitly
+/// rather than relying on the DbContext to stamp it.
+/// </para>
 /// </remarks>
 public class ApplicationDbContextSeeder(
     ApplicationDbContext context,
@@ -25,6 +33,9 @@ public class ApplicationDbContextSeeder(
     /// the API can be exercised without a provisioning UI.
     /// </summary>
     private const string DemoPassword = "Demo#Pass123";
+
+    /// <summary>Sign-in code for the demo restaurant, typed alongside the email at login.</summary>
+    private const string DemoRestaurantSlug = "demo";
 
     /// <summary>Applies any pending migrations.</summary>
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
@@ -70,6 +81,66 @@ public class ApplicationDbContextSeeder(
     }
 
     /// <summary>
+    /// Creates the platform administrator account from configuration if it does not exist.
+    /// </summary>
+    /// <remarks>
+    /// Run by the master application at startup, because a fresh database would otherwise have nobody
+    /// able to sign in to it and no way to create anybody. Unlike the demo data this is not gated on
+    /// the environment — a deployment needs a first administrator too — so the credentials come from
+    /// configuration rather than being hard-coded, and the seeder does nothing at all when they are
+    /// absent.
+    /// <para>
+    /// Only ever creates. An existing administrator's password is never reset from configuration,
+    /// so a stale setting cannot quietly hand out access to a live account.
+    /// </para>
+    /// </remarks>
+    public async Task SeedPlatformAdminAsync(IConfiguration configuration)
+    {
+        var email = configuration["PlatformAdmin:Email"];
+        var password = configuration["PlatformAdmin:Password"];
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            logger.LogInformation(
+                "No PlatformAdmin credentials are configured; skipping administrator seeding.");
+            return;
+        }
+
+        // Platform administrators carry no restaurant slug, so their user name is the plain email.
+        if (await userManager.FindByNameAsync(email) is not null)
+        {
+            return;
+        }
+
+        var admin = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = email,
+            Email = email,
+            EmailConfirmed = true,
+            FirstName = configuration["PlatformAdmin:FirstName"] ?? "Platform",
+            LastName = configuration["PlatformAdmin:LastName"] ?? "Administrator",
+            RestaurantId = null,
+            Role = UserRole.PlatformAdmin
+        };
+
+        var createResult = await userManager.CreateAsync(admin, password);
+
+        if (!createResult.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Could not create the platform administrator '{email}': " +
+                string.Join("; ", createResult.Errors.Select(error => error.Description)));
+        }
+
+        await userManager.AddToRoleAsync(admin, UserRole.PlatformAdmin.ToString());
+
+        logger.LogWarning(
+            "Created the platform administrator {Email} from configuration. Change its password.",
+            email);
+    }
+
+    /// <summary>
     /// Adds demo staff, tables, ingredients and a small menu. Safe to run repeatedly: each section
     /// is skipped when data is already present.
     /// </summary>
@@ -78,12 +149,117 @@ public class ApplicationDbContextSeeder(
         logger.LogWarning(
             "Seeding demo data with well-known passwords. This must never run against a deployed database.");
 
-        await SeedDemoUsersAsync();
-        await SeedTablesAsync(cancellationToken);
-        await SeedMenuAsync(cancellationToken);
+        var restaurant = await SeedDemoRestaurantAsync(cancellationToken);
+
+        await SeedDemoUsersAsync(restaurant);
+        await SeedDemoLicenseAsync(restaurant, cancellationToken);
+        await SeedTablesAsync(restaurant, cancellationToken);
+        await SeedMenuAsync(restaurant, cancellationToken);
+        await SeedShiftTemplatesAsync(restaurant, cancellationToken);
     }
 
-    private async Task SeedDemoUsersAsync()
+    /// <summary>
+    /// Adds the two shifts a venue of this kind runs, so the rota screen opens on something usable.
+    /// </summary>
+    /// <remarks>
+    /// Templates only. No assignments and no generated shifts: who works when is the manager's to
+    /// decide, and inventing a rota for the demo staff would only be in the way.
+    /// </remarks>
+    private async Task SeedShiftTemplatesAsync(Restaurant restaurant, CancellationToken cancellationToken)
+    {
+        if (await context.ShiftTemplates
+                .IgnoreQueryFilters()
+                .AnyAsync(template => template.RestaurantId == restaurant.Id, cancellationToken))
+        {
+            return;
+        }
+
+        context.ShiftTemplates.AddRange(
+            new ShiftTemplate
+            {
+                RestaurantId = restaurant.Id,
+                Name = "I smena",
+                StartTime = new TimeOnly(7, 0),
+                EndTime = new TimeOnly(15, 0)
+            },
+            new ShiftTemplate
+            {
+                RestaurantId = restaurant.Id,
+                Name = "II smena",
+                StartTime = new TimeOnly(15, 0),
+                EndTime = new TimeOnly(23, 0)
+            });
+
+        await context.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("Seeded 2 shift templates.");
+    }
+
+    /// <summary>
+    /// Gives the demo restaurant a licence so the till is actually usable.
+    /// </summary>
+    /// <remarks>
+    /// Without one the licence guard would refuse every call and the demo data would be inert. A year
+    /// is chosen so nobody returning to the project after a few months finds it locked.
+    /// </remarks>
+    private async Task SeedDemoLicenseAsync(Restaurant restaurant, CancellationToken cancellationToken)
+    {
+        if (await context.Licenses
+                .IgnoreQueryFilters()
+                .AnyAsync(license => license.RestaurantId == restaurant.Id, cancellationToken))
+        {
+            return;
+        }
+
+        // No administrator has issued this one; it exists so the demo works.
+        var license = License.Issue(
+            restaurant.Id,
+            LicensePlan.Annual,
+            price: 0m,
+            issuedByAdminId: Guid.Empty,
+            utcNow: DateTime.UtcNow,
+            notes: "Seeded demo licence.");
+
+        context.Licenses.Add(license);
+        await context.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("Seeded a demo licence expiring {ExpiresAtUtc:u}.", license.ExpiresAtUtc);
+    }
+
+    /// <summary>Creates the demo tenant everything else in the demo data hangs off.</summary>
+    private async Task<Restaurant> SeedDemoRestaurantAsync(CancellationToken cancellationToken)
+    {
+        var existing = await context.Restaurants
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(candidate => candidate.Slug == DemoRestaurantSlug, cancellationToken);
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var restaurant = new Restaurant
+        {
+            Id = Guid.NewGuid(),
+            Name = "Demo restoran",
+            Slug = DemoRestaurantSlug,
+            Address = "Knez Mihailova 1, Beograd",
+            ContactEmail = "kontakt@digitalregistry.local",
+            PhoneNumber = "+381 11 000 000",
+            CurrencyCode = "RSD",
+            TimeZoneId = "Europe/Belgrade",
+            IsActive = true
+        };
+
+        context.Restaurants.Add(restaurant);
+        await context.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation("Seeded demo restaurant {Slug} ({RestaurantId}).", restaurant.Slug, restaurant.Id);
+
+        return restaurant;
+    }
+
+    private async Task SeedDemoUsersAsync(Restaurant restaurant)
     {
         (string Email, string First, string Last, UserRole Role)[] demoUsers =
         [
@@ -96,7 +272,10 @@ public class ApplicationDbContextSeeder(
 
         foreach (var (email, firstName, lastName, role) in demoUsers)
         {
-            if (await userManager.FindByEmailAsync(email) is not null)
+            var userName = TenantUserName.For(restaurant.Slug, email);
+
+            // Looked up by user name, not email: emails are no longer unique across the platform.
+            if (await userManager.FindByNameAsync(userName) is not null)
             {
                 continue;
             }
@@ -104,11 +283,12 @@ public class ApplicationDbContextSeeder(
             var user = new ApplicationUser
             {
                 Id = Guid.NewGuid(),
-                UserName = email,
+                UserName = userName,
                 Email = email,
                 EmailConfirmed = true,
                 FirstName = firstName,
                 LastName = lastName,
+                RestaurantId = restaurant.Id,
                 Role = role
             };
 
@@ -117,91 +297,114 @@ public class ApplicationDbContextSeeder(
             if (!createResult.Succeeded)
             {
                 throw new InvalidOperationException(
-                    $"Could not create demo user '{email}': " +
+                    $"Could not create demo user '{userName}': " +
                     string.Join("; ", createResult.Errors.Select(error => error.Description)));
             }
 
             await userManager.AddToRoleAsync(user, role.ToString());
-            logger.LogInformation("Created demo {Role} account {Email}.", role, email);
+            logger.LogInformation("Created demo {Role} account {UserName}.", role, userName);
         }
     }
 
-    private async Task SeedTablesAsync(CancellationToken cancellationToken)
+    private async Task SeedTablesAsync(Restaurant restaurant, CancellationToken cancellationToken)
     {
-        if (await context.Tables.AnyAsync(cancellationToken))
+        if (await context.Tables
+                .IgnoreQueryFilters()
+                .AnyAsync(table => table.RestaurantId == restaurant.Id, cancellationToken))
         {
             return;
         }
 
-        int[] capacities = [2, 2, 4, 4, 4, 6, 6, 8];
+        // Two rooms, so the floor screen has more than one tab to show and the layout editor has
+        // somewhere to drag a table to.
+        var mainRoom = new Room
+        {
+            RestaurantId = restaurant.Id,
+            Name = "Sala",
+            DisplayOrder = 0
+        };
 
-        var tables = capacities
-            .Select((capacity, index) => new Table
+        var terrace = new Room
+        {
+            RestaurantId = restaurant.Id,
+            Name = "Bašta",
+            DisplayOrder = 1,
+            CanvasWidth = 900,
+            CanvasHeight = 600
+        };
+
+        context.Rooms.AddRange(mainRoom, terrace);
+
+        // Laid out in two rows of three inside, and a row of two on the terrace, so the demo opens on
+        // a floor plan that already reads like a room rather than a pile of tables at the origin.
+        (int Capacity, Room Room, int X, int Y, TableShape Shape, int Width, int Height)[] layout =
+        [
+            (2, mainRoom, 120, 120, TableShape.Round, 80, 80),
+            (2, mainRoom, 360, 120, TableShape.Round, 80, 80),
+            (4, mainRoom, 600, 120, TableShape.Square, 100, 100),
+            (4, mainRoom, 120, 360, TableShape.Square, 100, 100),
+            (4, mainRoom, 360, 360, TableShape.Square, 100, 100),
+            (6, mainRoom, 600, 360, TableShape.Rectangle, 180, 100),
+            (6, terrace, 120, 150, TableShape.Rectangle, 180, 100),
+            (8, terrace, 450, 150, TableShape.Rectangle, 220, 100)
+        ];
+
+        var tables = layout
+            .Select((entry, index) => new Table
             {
+                RestaurantId = restaurant.Id,
                 TableNumber = index + 1,
-                Capacity = capacity,
-                IsActive = true
+                Capacity = entry.Capacity,
+                IsActive = true,
+                Room = entry.Room,
+                PositionX = entry.X,
+                PositionY = entry.Y,
+                Width = entry.Width,
+                Height = entry.Height,
+                Shape = entry.Shape
             })
             .ToList();
 
         context.Tables.AddRange(tables);
         await context.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Seeded {Count} tables.", tables.Count);
+        logger.LogInformation("Seeded 2 rooms and {Count} tables.", tables.Count);
     }
 
-    private async Task SeedMenuAsync(CancellationToken cancellationToken)
+    private async Task SeedMenuAsync(Restaurant restaurant, CancellationToken cancellationToken)
     {
-        if (await context.MenuItems.AnyAsync(cancellationToken))
+        if (await context.MenuItems
+                .IgnoreQueryFilters()
+                .AnyAsync(menuItem => menuItem.RestaurantId == restaurant.Id, cancellationToken))
         {
             return;
         }
 
         var ingredients = new Dictionary<string, Ingredient>
         {
-            ["Espresso beans"] = new()
-            {
-                Name = "Espresso beans", StockQuantity = 5000m, Unit = UnitOfMeasure.Grams, LowStockThreshold = 500m
-            },
-            ["Milk"] = new()
-            {
-                Name = "Milk", StockQuantity = 20000m, Unit = UnitOfMeasure.Milliliters, LowStockThreshold = 2000m
-            },
-            ["Gin"] = new()
-            {
-                Name = "Gin", StockQuantity = 3000m, Unit = UnitOfMeasure.Milliliters, LowStockThreshold = 500m
-            },
-            ["Tonic water"] = new()
-            {
-                Name = "Tonic water", StockQuantity = 8000m, Unit = UnitOfMeasure.Milliliters, LowStockThreshold = 1000m
-            },
-            ["Lime"] = new()
-            {
-                Name = "Lime", StockQuantity = 40m, Unit = UnitOfMeasure.Units, LowStockThreshold = 10m
-            },
-            ["Burger patty"] = new()
-            {
-                Name = "Burger patty", StockQuantity = 60m, Unit = UnitOfMeasure.Units, LowStockThreshold = 12m
-            },
-            ["Burger bun"] = new()
-            {
-                Name = "Burger bun", StockQuantity = 60m, Unit = UnitOfMeasure.Units, LowStockThreshold = 12m
-            },
-            ["Cheddar"] = new()
-            {
-                Name = "Cheddar", StockQuantity = 2000m, Unit = UnitOfMeasure.Grams, LowStockThreshold = 300m
-            }
+            // Purchase prices are per unit in RSD, so the store has a value and menu margins can be
+            // computed from the first run rather than reading as pure profit until a delivery arrives.
+            ["Espresso beans"] = NewIngredient(restaurant, "Espresso beans", 5000m, UnitOfMeasure.Grams, 500m, 1.80m),
+            ["Milk"] = NewIngredient(restaurant, "Milk", 20000m, UnitOfMeasure.Milliliters, 2000m, 0.16m),
+            ["Gin"] = NewIngredient(restaurant, "Gin", 3000m, UnitOfMeasure.Milliliters, 500m, 2.40m),
+            ["Tonic water"] = NewIngredient(restaurant, "Tonic water", 8000m, UnitOfMeasure.Milliliters, 1000m, 0.35m),
+            ["Lime"] = NewIngredient(restaurant, "Lime", 40m, UnitOfMeasure.Units, 10m, 45m),
+            ["Burger patty"] = NewIngredient(restaurant, "Burger patty", 60m, UnitOfMeasure.Units, 12m, 210m),
+            ["Burger bun"] = NewIngredient(restaurant, "Burger bun", 60m, UnitOfMeasure.Units, 12m, 35m),
+            ["Cheddar"] = NewIngredient(restaurant, "Cheddar", 2000m, UnitOfMeasure.Grams, 300m, 1.10m)
         };
 
         context.Ingredients.AddRange(ingredients.Values);
 
+        // Prices are in RSD, the demo restaurant's currency.
         var menuItems = new List<MenuItem>
         {
-            BuildMenuItem("Espresso", "Coffee", 2.20m, ingredients, ("Espresso beans", 18m)),
-            BuildMenuItem("Cappuccino", "Coffee", 3.10m, ingredients, ("Espresso beans", 18m), ("Milk", 150m)),
-            BuildMenuItem("Gin and Tonic", "Cocktails", 7.50m, ingredients,
+            BuildMenuItem(restaurant, "Espresso", "Coffee", 180m, ingredients, ("Espresso beans", 18m)),
+            BuildMenuItem(restaurant, "Cappuccino", "Coffee", 250m, ingredients,
+                ("Espresso beans", 18m), ("Milk", 150m)),
+            BuildMenuItem(restaurant, "Gin and Tonic", "Cocktails", 650m, ingredients,
                 ("Gin", 50m), ("Tonic water", 150m), ("Lime", 0.25m)),
-            BuildMenuItem("Cheeseburger", "Food", 11.90m, ingredients,
+            BuildMenuItem(restaurant, "Cheeseburger", "Food", 890m, ingredients,
                 ("Burger patty", 1m), ("Burger bun", 1m), ("Cheddar", 30m))
         };
 
@@ -214,7 +417,24 @@ public class ApplicationDbContextSeeder(
             menuItems.Count);
     }
 
+    private static Ingredient NewIngredient(
+        Restaurant restaurant,
+        string name,
+        decimal stockQuantity,
+        UnitOfMeasure unit,
+        decimal lowStockThreshold,
+        decimal averagePurchasePrice) => new()
+        {
+            RestaurantId = restaurant.Id,
+            Name = name,
+            StockQuantity = stockQuantity,
+            Unit = unit,
+            LowStockThreshold = lowStockThreshold,
+            AveragePurchasePrice = averagePurchasePrice
+        };
+
     private static MenuItem BuildMenuItem(
+        Restaurant restaurant,
         string name,
         string category,
         decimal unitPrice,
@@ -223,6 +443,7 @@ public class ApplicationDbContextSeeder(
     {
         var menuItem = new MenuItem
         {
+            RestaurantId = restaurant.Id,
             Name = name,
             Category = category,
             UnitPrice = unitPrice,
@@ -233,6 +454,7 @@ public class ApplicationDbContextSeeder(
         {
             menuItem.Recipe.Add(new RecipeItem
             {
+                RestaurantId = restaurant.Id,
                 Ingredient = ingredients[ingredientName],
                 QuantityRequired = quantity
             });

@@ -1,11 +1,12 @@
+using DigitalRegistry.Api.Shared.Controllers;
 using DigitalRegistry.Application.Common.Security;
-using DigitalRegistry.Application.Features.Reservations;
 using DigitalRegistry.Application.Features.Reservations.Commands.CancelReservation;
 using DigitalRegistry.Application.Features.Reservations.Commands.CheckInReservation;
 using DigitalRegistry.Application.Features.Reservations.Commands.CreateReservation;
 using DigitalRegistry.Application.Features.Reservations.Queries.GetDailyReservations;
 using DigitalRegistry.Application.Features.Reservations.Queries.GetGuestReservations;
 using DigitalRegistry.Application.Features.Reservations.Queries.GetReservationById;
+using DigitalRegistry.Application.Features.Reservations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

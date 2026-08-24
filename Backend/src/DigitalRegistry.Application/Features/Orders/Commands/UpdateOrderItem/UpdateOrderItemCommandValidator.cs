@@ -24,15 +24,15 @@ public class UpdateOrderItemCommandValidator : AbstractValidator<UpdateOrderItem
         RuleFor(command => command.OrderItemId)
             .NotNull().NotEmpty()
             .When(command => command.Change is not OrderItemChange.Add)
-            .WithMessage("Changing or removing a line requires the line's id.");
+            .WithMessage("Changing a line requires the line's id.");
 
         RuleFor(command => command.Quantity)
             .NotNull()
-            .When(command => command.Change is OrderItemChange.Add or OrderItemChange.ChangeQuantity)
+            .When(command => command.Change is OrderItemChange.Add or OrderItemChange.IncreaseQuantity)
             .WithMessage("A quantity is required.");
 
         RuleFor(command => command.Quantity!.Value)
-            .GreaterThan(0).WithMessage("Quantity must be greater than zero; remove the line instead.")
+            .GreaterThan(0).WithMessage("Quantity must be greater than zero.")
             .LessThanOrEqualTo(99).WithMessage("Quantity must be 99 or fewer.")
             .When(command => command.Quantity is not null);
 

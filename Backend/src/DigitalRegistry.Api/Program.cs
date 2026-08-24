@@ -1,6 +1,10 @@
 using System.Reflection;
+// The licence guard is the till's alone: the master application is not subject to any one venue's
+// licence, so it stays here rather than in the shared library.
 using DigitalRegistry.Api.Middleware;
-using DigitalRegistry.Api.Services;
+using DigitalRegistry.Api.Shared.Middleware;
+using DigitalRegistry.Api.Shared.Serialization;
+using DigitalRegistry.Api.Shared.Services;
 using DigitalRegistry.Application;
 using DigitalRegistry.Application.Common.Interfaces;
 using DigitalRegistry.Infrastructure;
@@ -22,8 +26,18 @@ builder.Services.AddRbacAuthorization();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+// Both read the current request's claims, which is why they live in this layer rather than in
+// Infrastructure. The DbContext takes the tenant from here to filter and stamp every row.
+builder.Services.AddScoped<ITenantContext, TenantContext>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    // Timestamps come back from SQL Server with no kind, which would serialise without the trailing
+    // Z and be read by a browser as local time. See UtcDateTimeJsonConverter.
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+        options.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeJsonConverter());
+    });
 
 // Model-binding failures should look like every other validation failure the API returns.
 builder.Services.Configure<ApiBehaviorOptions>(options =>
@@ -112,6 +126,9 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "DigitalRegistry API v1");
         options.DocumentTitle = "DigitalRegistry API";
     });
+
+    // Land on the docs when the app is opened at its root (e.g. started outside launchSettings).
+    app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 }
 else
 {
@@ -122,6 +139,11 @@ else
 app.UseCors(CorsPolicyName);
 
 app.UseAuthentication();
+
+// After authentication, because the restaurant it checks comes from the validated token; before
+// authorization, so an unlicensed venue is told to pay rather than told it lacks a role.
+app.UseMiddleware<LicenseGuardMiddleware>();
+
 app.UseAuthorization();
 
 app.MapControllers();

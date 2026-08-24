@@ -16,7 +16,7 @@ internal sealed class JwtTokenGenerator(IOptions<JwtSettings> settingsAccessor) 
 {
     private readonly JwtSettings _settings = settingsAccessor.Value;
 
-    public (string Token, DateTime ExpiresAtUtc) GenerateForUser(ApplicationUser user)
+    public (string Token, DateTime ExpiresAtUtc) GenerateForUser(ApplicationUser user, string? restaurantSlug = null)
     {
         var roleName = user.Role.ToString();
 
@@ -32,6 +32,18 @@ internal sealed class JwtTokenGenerator(IOptions<JwtSettings> settingsAccessor) 
             new(DigitalRegistryClaimTypes.Role, roleName)
         };
 
+        // Absent for platform administrators, who belong to no restaurant. Every other token carries
+        // it, and the DbContext turns it into the filter on every query the session makes.
+        if (user.RestaurantId is { } restaurantId)
+        {
+            claims.Add(new Claim(DigitalRegistryClaimTypes.RestaurantId, restaurantId.ToString()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(restaurantSlug))
+        {
+            claims.Add(new Claim(DigitalRegistryClaimTypes.RestaurantSlug, restaurantSlug));
+        }
+
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
             claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email));
@@ -41,18 +53,22 @@ internal sealed class JwtTokenGenerator(IOptions<JwtSettings> settingsAccessor) 
         return CreateToken(claims, _settings.AccessTokenLifetimeMinutes);
     }
 
-    public (string Token, DateTime ExpiresAtUtc) GenerateForTableSession(Guid tableId, int tableNumber)
+    public (string Token, DateTime ExpiresAtUtc) GenerateForTableSession(
+        Guid restaurantId,
+        Guid tableId,
+        int tableNumber)
     {
         var roleName = UserRole.Guest.ToString();
 
         // No NameIdentifier and no user id: the session is anonymous by design. Everything it is
-        // allowed to do is derived from the table claim plus the guest role.
+        // allowed to do is derived from the restaurant and table claims plus the guest role.
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, $"table:{tableId}"),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(ClaimTypes.Role, roleName),
             new(DigitalRegistryClaimTypes.Role, roleName),
+            new(DigitalRegistryClaimTypes.RestaurantId, restaurantId.ToString()),
             new(DigitalRegistryClaimTypes.TableId, tableId.ToString()),
             new(DigitalRegistryClaimTypes.TableNumber, tableNumber.ToString())
         };

@@ -23,3 +23,18 @@ public sealed record OrderItemUpdatedDomainEvent(
 
 /// <summary>Raised once payment has been recorded and the order is closed.</summary>
 public sealed record OrderPaidDomainEvent(Guid OrderId, Guid TableId, decimal Amount) : DomainEventBase;
+
+/// <summary>
+/// Raised when a whole order is cancelled or reversed, so the floor screen frees the table.
+/// </summary>
+/// <param name="Amount">What came off the bill.</param>
+/// <param name="WasPaid">
+/// True when the bill had already been settled and a counter-transaction was written. False when the
+/// tab was cancelled before payment, which never touched the takings — the two mean different things
+/// to anyone reconciling the till.
+/// </param>
+public sealed record OrderVoidedDomainEvent(
+    Guid OrderId,
+    Guid TableId,
+    decimal Amount,
+    bool WasPaid) : DomainEventBase;

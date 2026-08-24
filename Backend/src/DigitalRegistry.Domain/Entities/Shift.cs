@@ -6,8 +6,11 @@ namespace DigitalRegistry.Domain.Entities;
 /// <summary>
 /// A working period assigned to a waiter by a manager.
 /// </summary>
-public class Shift : BaseEntity
+public class Shift : BaseEntity, IRestaurantScoped
 {
+    /// <inheritdoc />
+    public Guid RestaurantId { get; set; }
+
     public Guid WaiterId { get; set; }
 
     public DateTime StartTime { get; set; }
@@ -15,6 +18,18 @@ public class Shift : BaseEntity
     public DateTime EndTime { get; set; }
 
     public Guid AssignedByManagerId { get; set; }
+
+    /// <summary>
+    /// The standing arrangement this shift was generated from, or null for one entered by hand.
+    /// </summary>
+    /// <remarks>
+    /// Lets the generator recognise its own output, so running it twice over the same weeks tops up
+    /// what is missing instead of duplicating what is there. It also keeps a one-off cover shift
+    /// distinguishable from the regular rota.
+    /// </remarks>
+    public Guid? ShiftAssignmentId { get; set; }
+
+    public ShiftAssignment? ShiftAssignment { get; set; }
 
     public ApplicationUser? Waiter { get; set; }
 

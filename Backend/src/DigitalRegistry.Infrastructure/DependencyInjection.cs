@@ -3,6 +3,7 @@ using DigitalRegistry.Application.Common.Interfaces;
 using DigitalRegistry.Application.Common.Security;
 using DigitalRegistry.Domain.Entities;
 using DigitalRegistry.Infrastructure.Identity;
+using DigitalRegistry.Infrastructure.Licensing;
 using DigitalRegistry.Infrastructure.Persistence;
 using DigitalRegistry.Infrastructure.RealTime;
 using DigitalRegistry.Infrastructure.Services;
@@ -30,8 +31,16 @@ public static class DependencyInjection
         services.AddPersistence(configuration);
         services.AddIdentityAndAuthentication(configuration);
         services.AddRealTimeNotifications();
+        services.AddLicensing();
 
         services.AddSingleton<IDateTimeService, DateTimeService>();
+
+        return services;
+    }
+
+    private static IServiceCollection AddLicensing(this IServiceCollection services)
+    {
+        services.AddScoped<ILicenseService, LicenseService>();
 
         return services;
     }
@@ -75,7 +84,11 @@ public static class DependencyInjection
         // makes it the default scheme, which would fight with bearer tokens.
         services.AddIdentityCore<ApplicationUser>(options =>
             {
-                options.User.RequireUniqueEmail = true;
+                // Emails are unique per restaurant, not across the platform: the same person may work
+                // at two venues under one address. Identity's own uniqueness guarantee therefore rests
+                // on the user name, which composes the restaurant slug with the email.
+                options.User.RequireUniqueEmail = false;
+                options.User.AllowedUserNameCharacters = TenantUserName.AllowedUserNameCharacters;
 
                 options.Password.RequiredLength = 8;
                 options.Password.RequireDigit = true;

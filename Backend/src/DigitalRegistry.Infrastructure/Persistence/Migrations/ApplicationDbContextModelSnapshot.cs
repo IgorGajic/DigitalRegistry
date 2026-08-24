@@ -75,6 +75,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Role")
                         .HasColumnType("int");
 
@@ -98,7 +101,7 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("UserNameIndex")
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
-                    b.HasIndex("Role");
+                    b.HasIndex("RestaurantId", "Role");
 
                     b.ToTable("AspNetUsers", (string)null);
                 });
@@ -108,6 +111,10 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AveragePurchasePrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
 
                     b.Property<DateTime>("Created")
                         .HasColumnType("datetime2");
@@ -124,6 +131,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("StockQuantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
@@ -133,14 +143,116 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("RestaurantId", "Name")
                         .IsUnique();
 
                     b.ToTable("Ingredients", t =>
                         {
+                            t.HasCheckConstraint("CK_Ingredient_AvgPrice_NonNegative", "[AveragePurchasePrice] >= 0");
+
                             t.HasCheckConstraint("CK_Ingredient_Stock_NonNegative", "[StockQuantity] >= 0");
 
                             t.HasCheckConstraint("CK_Ingredient_Threshold_NonNegative", "[LowStockThreshold] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.License", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("IssuedByAdminId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Plan")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "ExpiresAtUtc");
+
+                    b.HasIndex("Status", "ExpiresAtUtc");
+
+                    b.ToTable("Licenses", t =>
+                        {
+                            t.HasCheckConstraint("CK_License_Period", "[ExpiresAtUtc] > [StartsAtUtc]");
+
+                            t.HasCheckConstraint("CK_License_Price_NonNegative", "[Price] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.LicensePayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("LicenseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("PaidAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PaymentMethod")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("RecordedByAdminId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LicenseId");
+
+                    b.HasIndex("PaidAtUtc");
+
+                    b.ToTable("LicensePayments", t =>
+                        {
+                            t.HasCheckConstraint("CK_LicensePayment_Amount_NonNegative", "[Amount] >= 0");
                         });
                 });
 
@@ -171,16 +283,19 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("RestaurantId", "Name")
                         .IsUnique();
 
-                    b.HasIndex("Category", "IsAvailable");
+                    b.HasIndex("RestaurantId", "Category", "IsAvailable");
 
                     b.ToTable("MenuItems", t =>
                         {
@@ -203,6 +318,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("Modified")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -214,9 +332,11 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
-
                     b.HasIndex("WaiterId");
+
+                    b.HasIndex("RestaurantId", "CreatedAt");
+
+                    b.HasIndex("RestaurantId", "Status");
 
                     b.HasIndex("TableId", "Status");
 
@@ -247,6 +367,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
@@ -286,6 +409,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 3)
                         .HasColumnType("decimal(18,3)");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("IngredientId");
@@ -320,6 +446,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<int>("PartySize")
                         .HasColumnType("int");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("datetime2");
 
@@ -331,15 +460,115 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StartTime");
-
                     b.HasIndex("GuestId", "StartTime");
+
+                    b.HasIndex("RestaurantId", "StartTime");
 
                     b.HasIndex("TableId", "StartTime", "EndTime");
 
                     b.ToTable("Reservations", t =>
                         {
                             t.HasCheckConstraint("CK_Reservation_Period", "[EndTime] > [StartTime]");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.Restaurant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrencyCode")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nchar(3)")
+                        .IsFixedLength();
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Restaurants");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.Room", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("CanvasHeight")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CanvasWidth")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "DisplayOrder");
+
+                    b.HasIndex("RestaurantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Rooms", t =>
+                        {
+                            t.HasCheckConstraint("CK_Room_Canvas_Positive", "[CanvasWidth] > 0 AND [CanvasHeight] > 0");
                         });
                 });
 
@@ -361,6 +590,12 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("Modified")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ShiftAssignmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("datetime2");
 
@@ -369,13 +604,231 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StartTime");
+                    b.HasIndex("ShiftAssignmentId");
+
+                    b.HasIndex("RestaurantId", "StartTime");
 
                     b.HasIndex("WaiterId", "StartTime", "EndTime");
 
                     b.ToTable("Shifts", t =>
                         {
                             t.HasCheckConstraint("CK_Shift_Period", "[EndTime] > [StartTime]");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.ShiftAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssignedByManagerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Days")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShiftTemplateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("ValidFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ValidTo")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("WaiterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftTemplateId");
+
+                    b.HasIndex("WaiterId");
+
+                    b.HasIndex("RestaurantId", "ValidFrom", "ValidTo");
+
+                    b.ToTable("ShiftAssignments", t =>
+                        {
+                            t.HasCheckConstraint("CK_ShiftAssignment_Period", "[ValidTo] IS NULL OR [ValidTo] >= [ValidFrom]");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.ShiftTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RestaurantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ShiftTemplates", t =>
+                        {
+                            t.HasCheckConstraint("CK_ShiftTemplate_Period", "[StartTime] <> [EndTime]");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.StockEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EntryDateUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("IngredientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<decimal>("PurchaseUnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<Guid>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Supplier")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IngredientId");
+
+                    b.HasIndex("RecordedByUserId");
+
+                    b.HasIndex("RestaurantId", "EntryDateUtc");
+
+                    b.ToTable("StockEntries", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockEntry_Cost_NonNegative", "[TotalCost] >= 0");
+
+                            t.HasCheckConstraint("CK_StockEntry_Price_NonNegative", "[PurchaseUnitPrice] >= 0");
+
+                            t.HasCheckConstraint("CK_StockEntry_Quantity_Positive", "[Quantity] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.StockMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("IngredientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<Guid?>("RecordedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StockEntryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("StockEntryId");
+
+                    b.HasIndex("IngredientId", "OccurredAtUtc");
+
+                    b.HasIndex("RestaurantId", "OccurredAtUtc");
+
+                    b.ToTable("StockMovements", t =>
+                        {
+                            t.HasCheckConstraint("CK_StockMovement_Quantity_NonZero", "[Quantity] <> 0");
                         });
                 });
 
@@ -391,6 +844,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("Created")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("Height")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -399,10 +855,31 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("Modified")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("PositionX")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PositionY")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("QrCodeToken")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Rotation")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Shape")
+                        .HasColumnType("int");
+
                     b.Property<int>("TableNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Width")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
@@ -410,7 +887,9 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.HasIndex("QrCodeToken")
                         .IsUnique();
 
-                    b.HasIndex("TableNumber")
+                    b.HasIndex("RoomId");
+
+                    b.HasIndex("RestaurantId", "TableNumber")
                         .IsUnique();
 
                     b.ToTable("Tables", t =>
@@ -418,6 +897,10 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Table_Capacity_Positive", "[Capacity] > 0");
 
                             t.HasCheckConstraint("CK_Table_Number_Positive", "[TableNumber] > 0");
+
+                            t.HasCheckConstraint("CK_Table_Rotation_Range", "[Rotation] >= 0 AND [Rotation] < 360");
+
+                            t.HasCheckConstraint("CK_Table_Size_Positive", "[Width] > 0 AND [Height] > 0");
                         });
                 });
 
@@ -446,21 +929,105 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("ProcessedByWaiterId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ReversesTransactionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("TransactionDate")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[ReversesTransactionId] IS NULL");
 
-                    b.HasIndex("TransactionDate");
+                    b.HasIndex("ProcessedByWaiterId");
 
-                    b.HasIndex("ProcessedByWaiterId", "TransactionDate");
+                    b.HasIndex("ReversesTransactionId")
+                        .IsUnique()
+                        .HasFilter("[ReversesTransactionId] IS NOT NULL");
+
+                    b.HasIndex("RestaurantId", "TransactionDate");
+
+                    b.HasIndex("RestaurantId", "ProcessedByWaiterId", "TransactionDate");
 
                     b.ToTable("Transactions", t =>
                         {
-                            t.HasCheckConstraint("CK_Transaction_Amount_NonNegative", "[Amount] >= 0");
+                            t.HasCheckConstraint("CK_Transaction_Amount_Sign", "([ReversesTransactionId] IS NULL AND [Amount] >= 0) OR ([ReversesTransactionId] IS NOT NULL AND [Amount] <= 0)");
+                        });
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.VoidRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Created")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ItemName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("MenuItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("Modified")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PerformedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("VoidedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("MenuItemId");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("PerformedByUserId");
+
+                    b.HasIndex("RestaurantId", "VoidedAtUtc");
+
+                    b.HasIndex("RestaurantId", "PerformedByUserId", "VoidedAtUtc");
+
+                    b.ToTable("VoidRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_VoidRecord_Amount_NonNegative", "[Amount] >= 0");
+
+                            t.HasCheckConstraint("CK_VoidRecord_Quantity_NonNegative", "[Quantity] >= 0");
                         });
                 });
 
@@ -595,6 +1162,38 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.ApplicationUser", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.Restaurant", "Restaurant")
+                        .WithMany()
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.License", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.Restaurant", "Restaurant")
+                        .WithMany("Licenses")
+                        .HasForeignKey("RestaurantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Restaurant");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.LicensePayment", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.License", "License")
+                        .WithMany("Payments")
+                        .HasForeignKey("LicenseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
             modelBuilder.Entity("DigitalRegistry.Domain.Entities.Order", b =>
                 {
                     b.HasOne("DigitalRegistry.Domain.Entities.Table", "Table")
@@ -672,13 +1271,93 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DigitalRegistry.Domain.Entities.Shift", b =>
                 {
+                    b.HasOne("DigitalRegistry.Domain.Entities.ShiftAssignment", "ShiftAssignment")
+                        .WithMany()
+                        .HasForeignKey("ShiftAssignmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("DigitalRegistry.Domain.Entities.ApplicationUser", "Waiter")
                         .WithMany("Shifts")
                         .HasForeignKey("WaiterId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("ShiftAssignment");
+
                     b.Navigation("Waiter");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.ShiftAssignment", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.ShiftTemplate", "ShiftTemplate")
+                        .WithMany("Assignments")
+                        .HasForeignKey("ShiftTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DigitalRegistry.Domain.Entities.ApplicationUser", "Waiter")
+                        .WithMany()
+                        .HasForeignKey("WaiterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ShiftTemplate");
+
+                    b.Navigation("Waiter");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.StockEntry", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.Ingredient", "Ingredient")
+                        .WithMany()
+                        .HasForeignKey("IngredientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DigitalRegistry.Domain.Entities.ApplicationUser", "RecordedBy")
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Ingredient");
+
+                    b.Navigation("RecordedBy");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.StockMovement", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.Ingredient", "Ingredient")
+                        .WithMany()
+                        .HasForeignKey("IngredientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DigitalRegistry.Domain.Entities.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DigitalRegistry.Domain.Entities.StockEntry", "StockEntry")
+                        .WithMany()
+                        .HasForeignKey("StockEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Ingredient");
+
+                    b.Navigation("Order");
+
+                    b.Navigation("StockEntry");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.Table", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.Room", "Room")
+                        .WithMany("Tables")
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Room");
                 });
 
             modelBuilder.Entity("DigitalRegistry.Domain.Entities.Transaction", b =>
@@ -695,9 +1374,49 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("DigitalRegistry.Domain.Entities.Transaction", "Reverses")
+                        .WithMany()
+                        .HasForeignKey("ReversesTransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Order");
 
                     b.Navigation("ProcessedByWaiter");
+
+                    b.Navigation("Reverses");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.VoidRecord", b =>
+                {
+                    b.HasOne("DigitalRegistry.Domain.Entities.ApplicationUser", "ApprovedBy")
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DigitalRegistry.Domain.Entities.MenuItem", "MenuItem")
+                        .WithMany()
+                        .HasForeignKey("MenuItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("DigitalRegistry.Domain.Entities.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DigitalRegistry.Domain.Entities.ApplicationUser", "PerformedBy")
+                        .WithMany()
+                        .HasForeignKey("PerformedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedBy");
+
+                    b.Navigation("MenuItem");
+
+                    b.Navigation("Order");
+
+                    b.Navigation("PerformedBy");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -763,6 +1482,11 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Navigation("UsedIn");
                 });
 
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.License", b =>
+                {
+                    b.Navigation("Payments");
+                });
+
             modelBuilder.Entity("DigitalRegistry.Domain.Entities.MenuItem", b =>
                 {
                     b.Navigation("Recipe");
@@ -771,6 +1495,21 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("DigitalRegistry.Domain.Entities.Order", b =>
                 {
                     b.Navigation("OrderItems");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.Restaurant", b =>
+                {
+                    b.Navigation("Licenses");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.Room", b =>
+                {
+                    b.Navigation("Tables");
+                });
+
+            modelBuilder.Entity("DigitalRegistry.Domain.Entities.ShiftTemplate", b =>
+                {
+                    b.Navigation("Assignments");
                 });
 
             modelBuilder.Entity("DigitalRegistry.Domain.Entities.Table", b =>

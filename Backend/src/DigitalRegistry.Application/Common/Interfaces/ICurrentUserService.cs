@@ -18,6 +18,16 @@ public interface ICurrentUserService
     UserRole? Role { get; }
 
     /// <summary>
+    /// The restaurant the caller is signed in to, or null when unauthenticated or when the caller is
+    /// a platform administrator.
+    /// </summary>
+    /// <remarks>
+    /// Handlers rarely need this — the DbContext already confines every query to it. It is here for
+    /// the few places that must write it onto something the context cannot infer.
+    /// </remarks>
+    Guid? RestaurantId { get; }
+
+    /// <summary>
     /// The table a QR session is locked to. Present only on tokens minted by scanning a table's QR
     /// code, and used to stop such a session ordering for any other table.
     /// </summary>

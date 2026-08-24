@@ -31,9 +31,12 @@ public class MenuItemConfiguration : IEntityTypeConfiguration<MenuItem>
             // The recipe has no meaning without its menu item.
             .OnDelete(DeleteBehavior.Cascade);
 
-        // The guest-facing menu is grouped by category and hides unavailable items.
-        builder.HasIndex(menuItem => new { menuItem.Category, menuItem.IsAvailable });
-        builder.HasIndex(menuItem => menuItem.Name).IsUnique();
+        // The guest-facing menu is grouped by category and hides unavailable items. Every read is
+        // already narrowed to one restaurant by the global query filter, so that column leads.
+        builder.HasIndex(menuItem => new { menuItem.RestaurantId, menuItem.Category, menuItem.IsAvailable });
+
+        // Names need only be unique within a restaurant — two venues may both sell an "Espresso".
+        builder.HasIndex(menuItem => new { menuItem.RestaurantId, menuItem.Name }).IsUnique();
 
         builder.Ignore(menuItem => menuItem.Price);
 

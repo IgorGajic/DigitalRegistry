@@ -20,4 +20,17 @@ public static class DigitalRegistryClaimTypes
 
     /// <summary>The human-readable table number, carried for display purposes only.</summary>
     public const string TableNumber = "digitalregistry:table_number";
+
+    /// <summary>
+    /// The restaurant every request made with this token is confined to.
+    /// </summary>
+    /// <remarks>
+    /// Present on staff tokens and on anonymous table-session tokens alike — a QR session without it
+    /// would resolve to no tenant and slip past the global query filters.
+    /// Absent only on platform administrator tokens, which belong to no restaurant.
+    /// </remarks>
+    public const string RestaurantId = "digitalregistry:restaurant_id";
+
+    /// <summary>The restaurant's sign-in code, carried for display purposes only.</summary>
+    public const string RestaurantSlug = "digitalregistry:restaurant_slug";
 }
