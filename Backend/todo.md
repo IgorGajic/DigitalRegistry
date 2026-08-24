@@ -1,6 +1,6 @@
 # DigitalRegistry — Backend Architecture & Implementation TODO
 
-This document serves as the comprehensive specification and implementation tracking list for **DigitalRegistry**, a modern .NET 8 Clean Architecture backend system designed for automated bar and restaurant management.
+This document serves as the comprehensive specification and implementation tracking list for **DigitalRegistry**, a modern .NET 10 Clean Architecture backend system designed for automated bar and restaurant management.
 
 ---
 
@@ -303,52 +303,59 @@ public class Transaction : BaseEntity
 
 ## 6. Implementation Roadmap & TODO Checklist
 
+> Phases 1–8 below are complete. Everything after them — multi-tenancy, licensing and the master
+> application, the floor plan, voids, shift scheduling, stock ledger, reports and the Angular
+> front end — is tracked in [`TODO.md`](../TODO.md) at the repository root.
+
 ### Phase 1: Solution Setup & Domain Foundations
-- [ ] Initialize .NET 8 Solution with projects: `Api`, `Infrastructure`, `Application`, `Domain`, `UnitTests`, `IntegrationTests`.
-- [ ] Implement `BaseEntity`, `AggregateRoot`, and `IDomainEvent` interfaces.
-- [ ] Create core Domain Enums (`UserRole`, `OrderStatus`, `ReservationStatus`, `PaymentMethod`, `UnitOfMeasure`).
-- [ ] Implement core Domain Entities (`ApplicationUser`, `Table`, `Reservation`, `Shift`, `MenuItem`, `Ingredient`, `RecipeItem`, `Order`, `OrderItem`, `Transaction`).
-- [ ] Set up EF Core `ApplicationDbContext` and configure entity relationships, entity keys, and indexes.
+- [x] Initialize .NET 10 Solution with projects: `Api`, `Infrastructure`, `Application`, `Domain`, `UnitTests`, `IntegrationTests`.
+- [x] Implement `BaseEntity`, `AggregateRoot`, and `IDomainEvent` interfaces.
+- [x] Create core Domain Enums (`UserRole`, `OrderStatus`, `ReservationStatus`, `PaymentMethod`, `UnitOfMeasure`).
+- [x] Implement core Domain Entities (`ApplicationUser`, `Table`, `Reservation`, `Shift`, `MenuItem`, `Ingredient`, `RecipeItem`, `Order`, `OrderItem`, `Transaction`).
+- [x] Set up EF Core `ApplicationDbContext` and configure entity relationships, entity keys, and indexes.
 
 ### Phase 2: Authentication & Authorization (ASP.NET Core Identity & JWT)
-- [ ] Configure `IdentityUser<Guid>` and ASP.NET Core Identity in `Infrastructure`.
-- [ ] Implement JWT Token Generator producing role claims (`Guest`, `Waiter`, `Manager`, `Owner`).
-- [ ] Implement `LoginCommand` and `RegisterGuestCommand` with MediatR.
-- [ ] Configure Authorization Policies in `Api` program startup corresponding to the RBAC matrix.
-- [ ] Implement `ICurrentUserService` to inject user Context (UserId, UserRole, TableId) safely across application handlers.
+- [x] Configure `IdentityUser<Guid>` and ASP.NET Core Identity in `Infrastructure`.
+- [x] Implement JWT Token Generator producing role claims (`Guest`, `Waiter`, `Manager`, `Owner`).
+- [x] Implement `LoginCommand` and `RegisterGuestCommand` with MediatR.
+- [x] Configure Authorization Policies in `Api` program startup corresponding to the RBAC matrix.
+- [x] Implement `ICurrentUserService` to inject user Context (UserId, UserRole, TableId) safely across application handlers.
 
 ### Phase 3: Table Management & QR Code Session Subsystem
-- [ ] Implement `CreateTableCommand`, `UpdateTableCommand`, and `DeleteTableCommand` (Manager/Owner only).
-- [ ] Implement `GetAvailableTablesQuery` with party size and time range filtering.
-- [ ] Implement `GenerateTableQrCodeTokenCommand` to rotate/regenerate table QR tokens.
-- [ ] Implement `InitializeTableSessionCommand` allowing guests to trade a QR token for a scoped table JWT.
+- [x] Implement `CreateTableCommand`, `UpdateTableCommand`, and `DeleteTableCommand` (Manager/Owner only).
+- [x] Implement `GetAvailableTablesQuery` with party size and time range filtering.
+- [x] Implement `GenerateTableQrCodeTokenCommand` to rotate/regenerate table QR tokens.
+- [x] Implement `InitializeTableSessionCommand` allowing guests to trade a QR token for a scoped table JWT.
 
 ### Phase 4: Reservation System
-- [ ] Implement `CreateReservationCommand` with validation for party size vs table capacity.
-- [ ] Implement overlap validation ensuring table isn't double-booked for given `StartTime` to `EndTime`.
-- [ ] Implement `CancelReservationCommand` (Guest can cancel own; Manager/Owner can cancel any).
-- [ ] Implement `GetGuestReservationsQuery` and `GetDailyReservationsQuery`.
+- [x] Implement `CreateReservationCommand` with validation for party size vs table capacity.
+- [x] Implement overlap validation ensuring table isn't double-booked for given `StartTime` to `EndTime`.
+- [x] Implement `CancelReservationCommand` (Guest can cancel own; Manager/Owner can cancel any).
+- [x] Implement `GetGuestReservationsQuery` and `GetDailyReservationsQuery`.
 
 ### Phase 5: Order Processing, Payment & Inventory Deduction Engine
-- [ ] Implement `CreateOrderCommand` (Staff direct table order).
-- [ ] Implement `CreateGuestQrOrderCommand` (Scoped to QR table session).
-- [ ] Implement `UpdateOrderItemCommand` (Add/remove items, update quantity or notes).
-- [ ] Implement `ProcessPaymentCommand` (Compute total, log `Transaction`, mark `Order` as `Paid`).
-- [ ] Build Inventory Deduction Handler: automatically decrease `Ingredient.StockQuantity` on item order.
-- [ ] Build Auto-Disable stock check: flip `MenuItem.IsAvailable = false` when ingredients are depleted.
+- [x] Implement `CreateOrderCommand` (Staff direct table order).
+- [x] Implement `CreateGuestQrOrderCommand` (Scoped to QR table session).
+- [x] Implement `UpdateOrderItemCommand` — **narrowed in Faza 12**: removal is gone and quantity only
+      goes up, so every reduction of a bill is a void with a recorded reason. Otherwise the void
+      report would be worthless as a control.
+- [x] Implement `ProcessPaymentCommand` (Compute total, log `Transaction`, mark `Order` as `Paid`).
+- [x] Build Inventory Deduction Handler: automatically decrease `Ingredient.StockQuantity` on item order.
+- [x] Build Auto-Disable stock check: flip `MenuItem.IsAvailable = false` when ingredients are depleted.
 
 ### Phase 6: Manager Shift Scheduling & Conflict Prevention
-- [ ] Implement `AssignShiftCommand` with FluentValidation rule checking for overlapping waiter shifts.
-- [ ] Implement `GetWaitersScheduleQuery` (Filter by date range or specific waiter ID).
-- [ ] Implement `DeleteShiftCommand` / `UpdateShiftCommand`.
+- [x] Implement `AssignShiftCommand` with FluentValidation rule checking for overlapping waiter shifts.
+- [x] Implement `GetWaitersScheduleQuery` (Filter by date range or specific waiter ID).
+- [x] Implement `DeleteShiftCommand` / `UpdateShiftCommand`.
 
 ### Phase 7: Real-Time SignalR Hub Integration
-- [ ] Create `KitchenHub` (`/hubs/kitchen`) and register clients in `Infrastructure`.
-- [ ] Create `OrderHub` (`/hubs/order`) for floor alerts.
-- [ ] Inject `INotificationService` into CQRS handlers to push real-time events when orders are created, updated, or paid.
+- [x] Create `KitchenHub` (`/hubs/kitchen`) and register clients in `Infrastructure`.
+- [x] Create `OrderHub` (`/hubs/order`) for floor alerts.
+- [x] Inject `INotificationService` into CQRS handlers to push real-time events when orders are created, updated, or paid.
 
 ### Phase 8: Testing, Refinement & Final Verification
-- [ ] Write Unit Tests for Shift Overlap validation logic in `DigitalRegistry.Domain.UnitTests`.
-- [ ] Write Unit Tests for Inventory Deduction and Menu Item Availability toggles.
-- [ ] Write Integration Tests using `Microsoft.AspNetCore.Mvc.Testing` and in-memory/test-container database for end-to-end API workflows.
-- [ ] Generate Swagger/OpenAPI documentation with JWT Bearer security definitions.
+- [x] Write Unit Tests for Shift Overlap validation logic in `DigitalRegistry.Domain.UnitTests`.
+- [x] Write Unit Tests for Inventory Deduction and Menu Item Availability toggles.
+- [x] Write Integration Tests using `Microsoft.AspNetCore.Mvc.Testing` and an in-memory database —
+      `tests/DigitalRegistry.IntegrationTests`: the till flow end to end, and the licence guard.
+- [x] Generate Swagger/OpenAPI documentation with JWT Bearer security definitions.

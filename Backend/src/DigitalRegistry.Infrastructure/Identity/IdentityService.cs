@@ -151,7 +151,8 @@ internal sealed class IdentityService(
             FullName: null,
             Role: UserRole.Guest,
             RestaurantId: restaurantId,
-            TableId: tableId));
+            TableId: tableId,
+            TableNumber: tableNumber));
     }
 
     public async Task<Result<Guid>> CreateAccountAsync(

@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { provideNativeDateAdapter } from '@angular/material/core';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,6 +16,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import {
   AuthService,
+  ConfirmDialog,
+  ConfirmDialogData,
   FloorPlanTableDto,
   RealtimeService,
   ReservationScheduleEntryDto,
@@ -48,6 +51,7 @@ import {
     MatCardModule,
     MatChipsModule,
     MatDatepickerModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
@@ -251,6 +255,7 @@ export class ReservationsPage {
   private readonly realtime = inject(RealtimeService);
   private readonly router = inject(Router);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly columns = ['time', 'table', 'guest', 'party', 'status', 'actions'];
 
@@ -353,14 +358,29 @@ export class ReservationsPage {
   }
 
   protected cancel(entry: ReservationScheduleEntryDto): void {
-    if (!confirm(`Otkazati rezervaciju za ${entry.guestName}, sto ${entry.tableNumber}?`)) {
-      return;
-    }
+    const data: ConfirmDialogData = {
+      title: 'Otkazati rezervaciju?',
+      message:
+        `${entry.guestName}, sto ${entry.tableNumber}, ${this.time(entry.startTime)}. `
+        + 'Sto se odmah oslobađa za druge goste.',
+      confirmText: 'Otkaži rezervaciju',
+      cancelText: 'Nazad',
+      destructive: true,
+    };
 
-    this.api.cancelReservation(entry.id).subscribe(() => {
-      this.snackBar.open('Rezervacija je otkazana.', 'U redu', { duration: 4000 });
-      this.load();
-    });
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+
+        this.api.cancelReservation(entry.id).subscribe(() => {
+          this.snackBar.open('Rezervacija je otkazana.', 'U redu', { duration: 4000 });
+          this.load();
+        });
+      });
   }
 
   protected openTable(tableId: string): void {

@@ -19,6 +19,10 @@ namespace DigitalRegistry.Application.Common.Models;
 /// <param name="TableId">
 /// Set only on tokens minted by scanning a table QR code, and pins the session to that table.
 /// </param>
+/// <param name="TableNumber">
+/// The number written on that table, so the guest's screen can say which table it is ordering for.
+/// Null for staff tokens.
+/// </param>
 public record AuthenticationResult(
     string AccessToken,
     DateTime ExpiresAtUtc,
@@ -28,4 +32,5 @@ public record AuthenticationResult(
     UserRole Role,
     Guid? RestaurantId = null,
     string? RestaurantSlug = null,
-    Guid? TableId = null);
+    Guid? TableId = null,
+    int? TableNumber = null);

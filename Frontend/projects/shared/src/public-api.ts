@@ -12,6 +12,9 @@ export * from './lib/auth/guards';
 
 export * from './lib/http/interceptors';
 
+export * from './lib/dialogs/prompt.dialog';
+export * from './lib/dialogs/confirm.dialog';
+
 export * from './lib/api/till-api.service';
 export * from './lib/api/platform-api.service';
 

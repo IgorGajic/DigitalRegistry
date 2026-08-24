@@ -13,6 +13,12 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/login.page').then((m) => m.LoginPage),
   },
   {
+    // Where a table's QR code leads. Outside the shell and outside the guard: whoever scans it has
+    // no account, and the token in the address is the entire session.
+    path: 'gost/:token',
+    loadComponent: () => import('./features/guest/guest-menu.page').then((m) => m.GuestMenuPage),
+  },
+  {
     path: 'licenca',
     loadComponent: () =>
       import('./features/license/license-expired.page').then((m) => m.LicenseExpiredPage),

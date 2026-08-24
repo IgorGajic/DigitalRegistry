@@ -44,9 +44,23 @@ export class RealtimeService {
    * the query string — which the API accepts for hub paths only.
    */
   async start(): Promise<void> {
-    if (this.connections.length || !this.auth.token()) {
+    if (!this.auth.token()) {
       return;
     }
+
+    // A handle that has fallen over is not a connection. Checking the count alone would leave the
+    // service sitting on dead sockets forever: while a licence is lapsed the API refuses the
+    // handshake, and nothing would reopen the hubs once it is paid — the floor would keep saying
+    // "no live connection" until someone reloaded the page.
+    const alive = this.connections.some(
+      (connection) => connection.state !== HubConnectionState.Disconnected,
+    );
+
+    if (alive) {
+      return;
+    }
+
+    await this.stop();
 
     const hubs: { path: string; events: RealtimeEvent['kind'][] }[] = [
       {

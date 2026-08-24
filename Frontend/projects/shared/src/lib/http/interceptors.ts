@@ -1,4 +1,4 @@
-import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { HttpContextToken, HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Router } from '@angular/router';
@@ -7,11 +7,27 @@ import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import { API_BASE_URL, LICENSE_ROUTE } from '../config/tokens';
 
+/**
+ * Marks a request as belonging to a scanned table session rather than to the signed-in member of
+ * staff.
+ *
+ * A guest's phone and a waiter's tablet run the same application, and a table session is not the
+ * till's session: it carries its own token, it must not overwrite the staff one, and when it lapses
+ * it must not sign the waiter out. The flag keeps both interceptors from treating it as ours.
+ */
+export const TABLE_SESSION_REQUEST = new HttpContextToken<boolean>(() => false);
+
 /** Attaches the bearer token to calls going to our own API, and to nothing else. */
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthService);
   const baseUrl = inject(API_BASE_URL);
   const token = auth.token();
+
+  // A table session brings its own Authorization header; overwriting it would send the guest's
+  // order under whichever staff account last used this browser.
+  if (request.context.get(TABLE_SESSION_REQUEST)) {
+    return next(request);
+  }
 
   if (!token || !request.url.startsWith(baseUrl)) {
     return next(request);
@@ -44,7 +60,10 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
   return next(request).pipe(
     catchError((error: HttpErrorResponse) => {
       if (error.status === 402) {
-        if (licenseRoute) {
+        // The licence screen is a staff screen: it names the venue and tells whoever is reading to
+        // call the platform administrator. A guest at a table gets told, by their own screen, that
+        // the venue is not taking orders — not sent somewhere they can do nothing about.
+        if (licenseRoute && !request.context.get(TABLE_SESSION_REQUEST)) {
           void router.navigate([licenseRoute]);
         }
 
@@ -52,6 +71,12 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
       }
 
       if (error.status === 401) {
+        // A lapsed table session is the guest's problem, not the till's; the guest screen says so
+        // itself. Signing the venue's staff out because a QR session timed out would be absurd.
+        if (request.context.get(TABLE_SESSION_REQUEST)) {
+          return throwError(() => error);
+        }
+
         // Sign-in failures are the login form's business; anything else means the session lapsed.
         if (!request.url.includes('/auth/login')) {
           auth.logout();

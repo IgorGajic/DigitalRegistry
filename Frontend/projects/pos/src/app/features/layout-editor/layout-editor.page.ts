@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -12,8 +13,12 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
+  ConfirmDialog,
+  ConfirmDialogData,
   FloorPlanDto,
   FloorPlanTableDto,
+  PromptDialog,
+  PromptDialogData,
   RoomDto,
   TableShape,
   TableLayoutRequest,
@@ -48,6 +53,7 @@ interface Placed {
     MatButtonModule,
     MatButtonToggleModule,
     MatCardModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
@@ -325,6 +331,7 @@ interface Placed {
 export class LayoutEditorPage {
   private readonly api = inject(TillApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
   private readonly canvas = viewChild<ElementRef<HTMLElement>>('canvas');
 
   protected readonly TableShape = TableShape;
@@ -358,10 +365,29 @@ export class LayoutEditorPage {
   }
 
   protected selectRoom(id: string): void {
-    if (this.dirty() && !confirm('Imate nesačuvane izmene. Napustiti ih?')) {
+    if (!this.dirty()) {
+      this.openRoom(id);
       return;
     }
 
+    const data: ConfirmDialogData = {
+      title: 'Nesačuvane izmene',
+      message: 'Raspored ove prostorije nije sačuvan. Ako pređete na drugu, izmene se gube.',
+      confirmText: 'Napusti izmene',
+      destructive: true,
+    };
+
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (confirmed) {
+          this.openRoom(id);
+        }
+      });
+  }
+
+  private openRoom(id: string): void {
     this.roomId.set(id);
     this.reset();
   }
@@ -424,24 +450,47 @@ export class LayoutEditorPage {
   }
 
   protected addRoom(): void {
-    const name = prompt('Naziv prostorije');
+    const data: PromptDialogData = {
+      title: 'Nova prostorija',
+      label: 'Naziv',
+      placeholder: 'npr. Bašta',
+      hint: 'Ime pod kojim će stajati u tabovima sale.',
+      confirmText: 'Napravi',
+    };
 
-    if (!name?.trim()) {
-      return;
-    }
-
-    this.api.createRoom({ name: name.trim() }).subscribe(() => this.load());
+    this.dialog
+      .open(PromptDialog, { data })
+      .afterClosed()
+      .subscribe((name: string | undefined) => {
+        if (name) {
+          this.api.createRoom({ name }).subscribe(() => this.load());
+        }
+      });
   }
 
   protected removeRoom(room: RoomDto): void {
-    if (!confirm(`Obrisati prostoriju „${room.name}“? Stolovi ostaju, samo se izmeštaju.`)) {
-      return;
-    }
+    const data: ConfirmDialogData = {
+      title: `Obrisati „${room.name}“?`,
+      message:
+        'Stolovi ostaju — samo prestaju da pripadaju ovoj prostoriji i mogu se rasporediti drugde. '
+        + 'Prostorija sa otvorenim računima se ne briše.',
+      confirmText: 'Obriši prostoriju',
+      destructive: true,
+    };
 
-    this.api.deleteRoom(room.id).subscribe(() => {
-      this.roomId.set(null);
-      this.load();
-    });
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+
+        this.api.deleteRoom(room.id).subscribe(() => {
+          this.roomId.set(null);
+          this.load();
+        });
+      });
   }
 
   protected createTable(): void {

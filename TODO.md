@@ -333,11 +333,15 @@ Uz to je svaki ekran obe Angular aplikacije prokliktan uživo, uz proveru u bazi
 
 - [ ] Poruke greške sa backenda stižu do korisnika na engleskom („Only a settled bill can be
       reversed"), dok je ostatak interfejsa na srpskom
-- [ ] SignalR se ne poveže ponovo sam kad licenca ponovo postane važeća — traka pokazuje „nema veze
-      uživo" do osvežavanja stranice
-- [ ] Grafikon „Prihod po mesecima" sa jednim mesecom podataka izgleda kao pun blok boje
-- [ ] Razlog suspenzije/otkazivanja licence i naziv prostorije se traže preko `prompt()`, dok je
-      ostatak aplikacije na Material dijalozima
+- [x] SignalR se ne poveže ponovo sam kad licenca ponovo postane važeća — `start()` je izlazio čim
+      niz veza nije prazan, a posle odbijenog handshake-a veze ostaju u nizu, samo mrtve. Sada se
+      gleda stanje veze, ne broj; mrtve se odbace i hubovi otvore ponovo
+- [x] Grafikon „Prihod po mesecima" sa jednim mesecom podataka izgleda kao pun blok boje — API je
+      vraćao samo mesece u kojima ima uplata; sada popunjava ceo traženi prozor, jer je prazan mesec
+      podatak a ne odsustvo podatka. Uz to je širina stupca ograničena na 44 px
+- [x] Razlog suspenzije/otkazivanja licence i naziv prostorije se traže preko `prompt()` — dodati
+      `PromptDialog` i `ConfirmDialog` u `shared`, i zamenjeno svih šest mesta u obe aplikacije.
+      Dijalozi sada i objašnjavaju posledicu („kasa staje odmah — sledeći poziv dobija 402")
 
 ---
 
@@ -399,6 +403,19 @@ Uz to je svaki ekran obe Angular aplikacije prokliktan uživo, uz proveru u bazi
 - [x] Evidencija uplata
 - [x] Dashboard: aktivne vs. istekle licence, prihod po mesecima
 
+### Gost i QR (dodato posle testiranja)
+- [x] `/gost/:token` — mobilni ekran do kog vodi QR kod sa stola: jelovnik restorana kome sto
+      pripada, kategorije, korpa zakačena za dno ekrana, slanje porudžbine konobaru. Bez prijave —
+      token iz linka je cela sesija i kaže samo koji je sto
+- [x] `GuestSessionService` — sesija stola u `sessionStorage`, odvojena od `AuthService`: gost koji
+      skenira kod na tuđem telefonu ne izbacuje kasu iz sesije, a istekla sesija stola ne odjavljuje
+      osoblje. `TABLE_SESSION_REQUEST` govori interceptorima da ne diraju te pozive i da gosta ne
+      šalju na ekran licence, koji je namenjen osoblju
+- [x] `AuthenticationResult` dobio `TableNumber`, da gostov ekran može da kaže za koji sto poručuje
+- [ ] **Sam QR kod se još ne generiše.** API vraća goli token, ništa ne crta sliku i nigde se ne vidi
+      link koji kod treba da nosi (`{origin}/gost/{QrCodeToken}`). Za štampu je potreban generator
+      slike i list za štampanje po prostoriji
+
 ### Ostalo
 - [x] CORS u `appsettings.Development.json` — Angular portovi `4200` (pos) i `4300` (master)
 - [x] Izmena podataka restorana iz master aplikacije — forma na `/restorani/:id` (naziv, adresa,
@@ -408,9 +425,8 @@ Uz to je svaki ekran obe Angular aplikacije prokliktan uživo, uz proveru u bazi
 
 ## Faza 16 — Testovi i dokumentacija
 
-- [ ] Commit-ovati postojeće netrekovane testove — 182 testa prolaze, ali su svi fajlovi i dalje
-      netrekovani u gitu (`tests/*/Entities`, `ValueObjects`, `Inventory`, `Shifts`, `Persistence`, `FloorPlan`),
-      kao i ceo `Frontend/`
+- [x] Commit-ovati postojeći netrekovani rad — Faze 9–15 (Master API, `Frontend/`, migracije,
+      testovi, `tools/`) komitovane u `122dc58`
 - [x] Unit testovi: izolacija tenanta (query filter odseca tuđe podatke) — `Persistence/TenantIsolationTests.cs`
 - [x] Unit testovi: `License.IsCurrentlyValid` i produženje — `Entities/LicenseTests.cs`
 - [x] Unit testovi: generisanje smena iz šablona, uključujući preklapanje — `Shifts/GenerateScheduleCommandHandlerTests.cs`,
@@ -418,13 +434,23 @@ Uz to je svaki ekran obe Angular aplikacije prokliktan uživo, uz proveru u bazi
 - [x] Unit testovi: storno stavke/računa i povraćaj zaliha — `Entities/OrderVoidTests.cs`,
       `Inventory/InventoryAllocatorTests.cs`
 - [x] Unit testovi: `StockMovement` saldo — `Inventory/StockLedgerTests.cs`
-- [ ] Integracioni testovi (`tests/DigitalRegistry.IntegrationTests` je **prazan projekat**,
-      ali su `Mvc.Testing` i `public partial class Program` već spremni):
-      prijava → otvaranje računa → stavke → storno stavke → naplata → provera zaliha
-- [ ] Integracioni test: istekla licenca → svaki poziv kase vraća 402
-- [ ] Ažurirati `Backend/todo.md` (.NET 8 → .NET 10; kvačice za Faze 1–8)
-- [ ] `README.md` sa uputstvom za pokretanje
-- [ ] `docs/` — ER dijagram i dijagram arhitekture za pisani deo diplomskog
+- [x] Integracioni testovi — `TillFlowTests`: prijava → otvaranje računa → dodavanje → delimičan
+      storno → naplata, uz proveru zaliha, knjige prometa i statusa stola posle svakog koraka;
+      plus protivstavka koju konobar ne sme (403) a menadžer sme, i konobarski RBAC na otvaranju računa
+- [x] Integracioni test: istekla licenca → 402 sa `LICENSE_EXPIRED` na svakoj ruti kase, dok prijava
+      i `/api/license/status` i dalje rade; produženje odmah vraća kasu u rad (`LicenseGuardTests`)
+- [x] Host se u testovima diže sa in-memory provajderom (`DigitalRegistryApiFactory`), pa
+      `dotnet test` ne traži SQL Server. `MigrateAsync` preskače nerelacione provajdere; vernost
+      prema pravoj bazi ostaje na `tools/api-walkthrough`
+- [x] Ažurirati `Backend/todo.md` — .NET 10, sve kvačice za Faze 1–8, pokazivač na ovaj dokument za
+      ostalo, i napomena gde se implementacija namerno razišla sa prvobitnim tekstom
+      (`UpdateOrderItemCommand` više ne briše stavke)
+- [x] `README.md` sa uputstvom za pokretanje — preduslovi, četiri procesa, demo nalozi, RBAC po
+      ekranima, struktura, provera i ograničenja
+- [x] `docs/` — [`architecture.md`](docs/architecture.md) (celina, put jednog zahteva kroz slojeve,
+      odakle dolazi restoran, provera u više slojeva) i [`er-diagram.md`](docs/er-diagram.md)
+      (model podataka, platformski deo, ograničenja koja drži baza). Mermaid, renderuje se na
+      GitHubu; svih 6 dijagrama provereno kroz `mermaid-cli`
 
 ---
 

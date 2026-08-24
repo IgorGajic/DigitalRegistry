@@ -3,6 +3,7 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,12 +13,16 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import {
+  ConfirmDialog,
+  ConfirmDialogData,
   LicenseDto,
   LicensePaymentDto,
   LicensePlan,
   LicenseStatus,
   PaymentMethod,
   PlatformApiService,
+  PromptDialog,
+  PromptDialogData,
   RestaurantSummaryDto,
   licensePlanLabels,
   licenseStatusLabels,
@@ -41,6 +46,7 @@ import {
     MatButtonModule,
     MatCardModule,
     MatChipsModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
@@ -455,6 +461,7 @@ export class RestaurantDetailPage {
 
   private readonly api = inject(PlatformApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly LicenseStatus = LicenseStatus;
   protected readonly plans = [
@@ -589,16 +596,32 @@ export class RestaurantDetailPage {
   }
 
   protected suspend(license: LicenseDto): void {
-    const reason = prompt('Razlog suspenzije');
+    const data: PromptDialogData = {
+      title: 'Suspenzija licence',
+      label: 'Razlog',
+      hint: 'Ostaje zabeležen uz licencu i vidi se ovde.',
+      warning: 'Kasa ovog restorana staje odmah — sledeći poziv dobija 402.',
+      placeholder: 'npr. neplaćanje po opomeni',
+      multiline: true,
+      minLength: 3,
+      confirmText: 'Suspenduj',
+    };
 
-    if (!reason?.trim()) {
-      return;
-    }
+    this.dialog
+      .open(PromptDialog, { data })
+      .afterClosed()
+      .subscribe((reason: string | undefined) => {
+        if (!reason) {
+          return;
+        }
 
-    this.api.suspendLicense(license.id, reason.trim()).subscribe(() => {
-      this.snackBar.open('Licenca je suspendovana. Kasa staje odmah.', 'U redu', { duration: 5000 });
-      this.load();
-    });
+        this.api.suspendLicense(license.id, reason).subscribe(() => {
+          this.snackBar.open('Licenca je suspendovana. Kasa staje odmah.', 'U redu', {
+            duration: 5000,
+          });
+          this.load();
+        });
+      });
   }
 
   protected reactivate(license: LicenseDto): void {
@@ -606,13 +629,24 @@ export class RestaurantDetailPage {
   }
 
   protected cancel(license: LicenseDto): void {
-    const reason = prompt('Razlog otkazivanja');
+    const data: PromptDialogData = {
+      title: 'Otkazivanje licence',
+      label: 'Razlog',
+      hint: 'Otkazana licenca se ne produžava — restoranu se izdaje nova.',
+      warning: 'Konačno. Kasa staje i ostaje zaustavljena dok se ne izda nova licenca.',
+      multiline: true,
+      minLength: 3,
+      confirmText: 'Otkaži licencu',
+    };
 
-    if (!reason?.trim()) {
-      return;
-    }
-
-    this.api.cancelLicense(license.id, reason.trim()).subscribe(() => this.load());
+    this.dialog
+      .open(PromptDialog, { data })
+      .afterClosed()
+      .subscribe((reason: string | undefined) => {
+        if (reason) {
+          this.api.cancelLicense(license.id, reason).subscribe(() => this.load());
+        }
+      });
   }
 
   protected createOwner(): void {

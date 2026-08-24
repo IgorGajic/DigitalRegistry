@@ -196,6 +196,9 @@ import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'sha
 
     .dash__bar {
       width: 100%;
+      /* Capped so a short series still reads as a bar chart. Without it a single month fills the
+         whole card and looks like a block of colour rather than one month's takings. */
+      max-width: 44px;
       min-height: 2px;
       background: var(--mat-sys-primary);
       border-radius: 4px 4px 0 0;

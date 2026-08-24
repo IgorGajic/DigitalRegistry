@@ -48,8 +48,24 @@ public class GetPlatformDashboardQueryHandler(
             .ThenBy(row => row.Month)
             .ToListAsync(cancellationToken);
 
-        var monthlyRevenue = revenueRows
-            .Select(row => new MonthlyRevenueDto(row.Year, row.Month, row.Amount, row.PaymentCount))
+        // Every month in the window, including the ones nobody paid in. A quiet month is a fact worth
+        // drawing: leaving it out makes it indistinguishable from a month that never happened, and a
+        // chart with a single bar in it reads as a full house rather than as one month's takings.
+        var monthlyRevenue = Enumerable
+            .Range(0, Math.Max(request.RevenueMonths, 1))
+            .Select(offset => revenueFrom.AddMonths(offset))
+            .Select(month =>
+            {
+                var row = revenueRows
+                    .FirstOrDefault(candidate => candidate.Year == month.Year
+                                                 && candidate.Month == month.Month);
+
+                return new MonthlyRevenueDto(
+                    month.Year,
+                    month.Month,
+                    row?.Amount ?? 0m,
+                    row?.PaymentCount ?? 0);
+            })
             .ToList();
 
         var totalRevenue = await context.AllLicensePayments()

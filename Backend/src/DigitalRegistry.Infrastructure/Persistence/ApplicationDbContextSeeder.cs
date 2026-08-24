@@ -40,6 +40,14 @@ public class ApplicationDbContextSeeder(
     /// <summary>Applies any pending migrations.</summary>
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
     {
+        // The integration tests run the host against the in-memory provider, which has no migrations
+        // and throws when asked for them. The model it builds comes from the same configuration, so
+        // there is nothing to apply and nothing to check.
+        if (!context.Database.IsRelational())
+        {
+            return;
+        }
+
         var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
 
         if (pending.Count == 0)

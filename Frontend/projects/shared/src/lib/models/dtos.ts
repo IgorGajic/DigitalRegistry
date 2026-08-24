@@ -31,6 +31,8 @@ export interface AuthenticationResult {
   restaurantId: string | null;
   restaurantSlug: string | null;
   tableId: string | null;
+  /** Set only for a scanned table session, so the guest's screen can name the table. */
+  tableNumber: number | null;
 }
 
 // ---------------------------------------------------------------------------------------- licence
