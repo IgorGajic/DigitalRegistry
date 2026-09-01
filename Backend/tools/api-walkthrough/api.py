@@ -4,6 +4,11 @@ import json, urllib.request, urllib.error, datetime
 TILL = "http://localhost:5275"
 MASTER = "http://localhost:5285"
 
+# One suffix for the whole run, so every name, slug and email this script creates is new.
+# Without it a second run collides on the first thing it tries to create and reports a 409 as a
+# failure — which is what made the walkthrough need a freshly dropped database each time.
+RUN = datetime.datetime.now().strftime("%H%M%S")
+
 results = []
 
 

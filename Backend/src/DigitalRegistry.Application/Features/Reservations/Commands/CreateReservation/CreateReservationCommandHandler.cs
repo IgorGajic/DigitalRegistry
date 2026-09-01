@@ -16,12 +16,36 @@ public class CreateReservationCommandHandler(
         CreateReservationCommand request,
         CancellationToken cancellationToken)
     {
-        // An anonymous QR table session carries the guest role but no user id. Such a guest is
-        // already seated, so there is nobody to attribute a booking to.
-        if (currentUserService.UserId is not { } guestId)
+        var isStaff = currentUserService.IsInAnyRole(UserRole.Waiter, UserRole.Manager, UserRole.Owner);
+        var contactName = string.IsNullOrWhiteSpace(request.ContactName)
+            ? null
+            : request.ContactName.Trim();
+
+        // Only the desk books on somebody else's behalf. A guest sending a name would otherwise be
+        // able to detach a booking from their own account and cancel rules along with it.
+        if (contactName is not null && !isStaff)
         {
             return Result<ReservationDto>.Forbidden(
-                "A table QR session cannot make reservations. Sign in with an account first.");
+                "Only staff can book on a guest's behalf. Your booking is made in your own name.");
+        }
+
+        if (contactName is null)
+        {
+            // An anonymous QR table session carries the guest role but no user id. Such a guest is
+            // already seated, so there is nobody to attribute a booking to.
+            if (currentUserService.UserId is null)
+            {
+                return Result<ReservationDto>.Forbidden(
+                    "A table QR session cannot make reservations. Sign in with an account first.");
+            }
+
+            // Staff who give no name would file the booking under themselves, which is the thing
+            // this endpoint exists to stop.
+            if (isStaff)
+            {
+                return Result<ReservationDto>.Invalid(
+                    "A booking taken by staff must say who it is for.");
+            }
         }
 
         var table = await context.Tables
@@ -61,7 +85,14 @@ public class CreateReservationCommandHandler(
 
         var reservation = new Reservation
         {
-            GuestId = guestId,
+            // Exactly one of the two is set: a guest's own booking carries their account, a desk
+            // booking carries the name that was written down and no account at all.
+            GuestId = contactName is null ? currentUserService.UserId : null,
+            ContactName = contactName,
+            ContactPhone = contactName is null || string.IsNullOrWhiteSpace(request.ContactPhone)
+                ? null
+                : request.ContactPhone.Trim(),
+            TakenByUserId = contactName is null ? null : currentUserService.UserId,
             TableId = table.Id,
             StartTime = request.StartTime,
             EndTime = request.EndTime,

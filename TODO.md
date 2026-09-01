@@ -329,10 +329,8 @@ Uz to je svaki ekran obe Angular aplikacije prokliktan uživo, uz proveru u bazi
 - `POST` za prostoriju, artikal, zaposlenog, licencu i uplatu vraća 200 sa resursom umesto 201 —
   nedosledno sa stolovima i računima, ali bezopasno
 
-### Ostaje kao sitnica
+### Sitnice iz testiranja (poruke grešaka su prenete u „Preostalo")
 
-- [ ] Poruke greške sa backenda stižu do korisnika na engleskom („Only a settled bill can be
-      reversed"), dok je ostatak interfejsa na srpskom
 - [x] SignalR se ne poveže ponovo sam kad licenca ponovo postane važeća — `start()` je izlazio čim
       niz veza nije prazan, a posle odbijenog handshake-a veze ostaju u nizu, samo mrtve. Sada se
       gleda stanje veze, ne broj; mrtve se odbace i hubovi otvore ponovo
@@ -412,9 +410,7 @@ Uz to je svaki ekran obe Angular aplikacije prokliktan uživo, uz proveru u bazi
       osoblje. `TABLE_SESSION_REQUEST` govori interceptorima da ne diraju te pozive i da gosta ne
       šalju na ekran licence, koji je namenjen osoblju
 - [x] `AuthenticationResult` dobio `TableNumber`, da gostov ekran može da kaže za koji sto poručuje
-- [ ] **Sam QR kod se još ne generiše.** API vraća goli token, ništa ne crta sliku i nigde se ne vidi
-      link koji kod treba da nosi (`{origin}/gost/{QrCodeToken}`). Za štampu je potreban generator
-      slike i list za štampanje po prostoriji
+- Sam QR kod se generiše od Faze 17 — vidi kraj dokumenta
 
 ### Ostalo
 - [x] CORS u `appsettings.Development.json` — Angular portovi `4200` (pos) i `4300` (master)
@@ -480,6 +476,107 @@ Ručna provera kroz Swagger sa demo nalozima iz `ApplicationDbContextSeeder`
    i potvrditi da sto na `/floor` pocrveni preko SignalR-a bez osvežavanja.
 6. **Smene** — „II smena 15–23“, dodela konobaru Pon–Pet za septembar, generisanje rasporeda;
    potvrditi 22 smene i da ponovno generisanje ne pravi duplikate.
+
+---
+
+## Faza 17 — rupe koje je testiranje otvorilo
+
+Faze 9–16 su zatvorene; ovo je ono što je testiranje posle njih otvorilo. Funkcionalne rupe i
+provera su odrađene, uz njih i backend testovi za sve novo (`BillHistoryTests`,
+`DeskReservationTests`, `GuestTableTabTests`, `TableQrCodeSheetTests` — integracioni ih ima 26
+umesto 9).
+
+**Faza 17 je zatvorena.** Ostaje samo ono što se tiče produkcije, na dnu ovog odeljka.
+
+> **Prolaz kroz UI/UX (1. septembar 2026.)** je zaseban posao i vodi se u
+> [`Frontend/BUGS.md`](Frontend/BUGS.md): petnaest zatvorenih stavki — od tooltipa koji nije radio i
+> pokvarene srpske množine, preko stanja učitavanja i responsive prikaza, do vizuelnog identiteta i
+> grafikona — i sedam otvorenih, od kojih je najveća da ništa od toga nije prokliktano uživo.
+
+### Funkcionalne rupe — zatvorene
+
+- [x] **QR kod se generiše.** `GET /api/tables/qr-codes` (Menadžer+) vraća token po stolu, uz
+      prostoriju, jer je token akreditiv i ne sme na ekran sale. U `/raspored` stoji dugme
+      „QR kodovi" — list za štampu po prostoriji, i pojedinačni kod za odabrani sto, kad se
+      odštampani ošteti ili se token obnovi. Slika ide kroz paket `qrcode`, iscrtana na 512 px i
+      štampana na 45 mm; link se gradi iz `window.location.origin`, jer kod skenira telefon koji
+      stoji u restoranu i mora da vodi na host sa koga se kasa zaista servira. Ispod svakog koda
+      stoji i sama adresa, za telefon koji neće da skenira.
+- [x] **Plaćen račun se ponovo nalazi.** `GET /api/orders?from&to&status&tableId&take` vraća
+      sažetke bez stavki (lista služi da se račun nađe; stavke stižu uz otisak), sa istim kratkim
+      brojem koji otisak štampa — onim koji gost izgovori preko telefona. Ekran `/racuni`
+      („Poslednji računi") ima dan, status, sto i pretragu po broju; otisak se otvara odatle, a iz
+      njega, uz razlog, protivstavka.
+
+      **Odstupanje od plana gore:** ekran nije Menadžer+ nego Konobar+. Uvedena je politika
+      `ViewOrderHistory` = Konobar/Menadžer/Vlasnik, i `GET /{id}/receipt` je prebačen s
+      `ProcessPayment` na nju. Razlog: `ProcessPayment` je Konobar+Vlasnik, pa menadžer koji sme da
+      stornira plaćen račun nije smeo ni da ga vidi; a konobar koji traži kopiju računa koji je sam
+      zatvorio ne treba da zove nekog starijeg. Sam storno ostaje `ApproveVoid` (Menadžer+), i
+      dugme se u ekranu krije po ulozi.
+- [x] **Rezervacija se unosi u ime gosta.** `Reservation.GuestId` je sada opciono, uz
+      `ContactName`, `ContactPhone` i `TakenByUserId`; migracija `AddDeskReservations`. Baza drži
+      `CK_Reservation_Booker` — rezervacija mora imati ili nalog gosta ili zapisano ime. Komanda i
+      dalje ne prima tuđi `guestId`: gost rezerviše samo sebi, a osoblje **mora** da unese ime,
+      inače 400 — bez toga bi rezervacija opet pala na onoga ko je digao slušalicu. `/rezervacije`
+      je dobio „Nova rezervacija", a dnevni raspored prikazuje ime i telefon, uz to ko je primio.
+- [x] **Gost vidi šta je već poručio.** `GET /api/orders/mine` odgovara sesiji stola: sto se čita
+      iz tokena, pa kod može da dohvati samo svoj sto. Vraća sve runde koje još nisu naplaćene,
+      zbirno — jer svaka runda otvara svoj račun, pa nijedan odgovor koji je gost već video ne daje
+      zbir za sto. Na `/gost/:token` stoji panel „Već ste poručili", a ekran posle slanja kaže i
+      koliko sto duguje ukupno.
+
+### Kvalitet i provera — zatvoreno
+
+- [x] **Frontend ima testove** — 43 (vitest), `ng test shared` i `ng test pos`:
+      `interceptors.spec.ts` (402 nasuprot 401 nasuprot sesije stola, 403, mrtav server, čitanje
+      RFC 7807 odgovora, i to da `authInterceptor` ne dira token sesije stola),
+      `guest-session.service.spec.ts` (sesija u `sessionStorage`, istekla i pokvarena sesija,
+      sopstveno zaglavlje i `TABLE_SESSION_REQUEST`), `floor.page.spec.ts` (boja po statusu stola,
+      čitanje za čitač ekrana, ponovno učitavanje na hub događaj), `reservation.dialog.spec.ts`
+      (unos rezervacije) i `labels.spec.ts` (srpska množina).
+- [x] **Vizuelna provera** obavljena kroz Chrome: prijava, `/racuni` sa otiskom i storniranim
+      redovima, unos rezervacije s kraja na kraj, list QR kodova, skeniran kod → `/gost/:token`,
+      poručivanje, SignalR (sto na `/sala` skočio sa 610 na 910 RSD bez osvežavanja), grafikon
+      „Prihod po mesecima" u master aplikaciji. Konzola bez grešaka.
+
+      Nađeno i ispravljeno u toku provere: srpska množina je bila dvočlana („3 stavki"), pa je
+      dodat `plural()` u `shared/format/labels` — 1 stavka, 2–4 stavke, 5+ stavki, uz izuzetak za
+      tinejdžerske brojeve; i precrtavanje reda na `/racuni` više ne precrtava dugme na njemu.
+- [x] **`main.py` je ponovljiv.** Sve što skripta pravi nosi `api.RUN`, sufiks iz sata pokretanja
+      (šifra restorana, email vlasnika, nalog konobara, artikal, prostorija, šablon smene), a broj
+      stola prati najveći u upotrebi. Provereno: dva uzastopna pokretanja nad istom bazom, 173/173
+      oba puta. `db.py` sada čita server i bazu iz `appsettings.Development.json` kase — ranije je
+      pokazivao na `DigitalRegistryTest` dok je API pisao u `DigitalRegistry`, pa je `dbwalk.py`
+      padao na svakoj proveri iz pogrešnog razloga.
+
+### Jezik
+
+- [x] **Poruke grešaka sa backenda stižu na engleskom** („Only a settled bill can be reversed"), dok
+      je ostatak interfejsa na srpskom.
+
+      **Odlučeno: mapiranje na frontendu.** API ostaje netaknut — ugovor dele master host i svaki
+      budući klijent, a vezivanje za jedan jezik je odluka koja se teško vraća. Prevod je u
+      `Frontend/projects/shared/src/lib/http/messages.ts`, provučen kroz `describe()`, koji je jedina
+      tačka kroz koju poruka stiže do ekrana (snackbar i obe prijave).
+
+      Cena te odluke: stabilnog `code` polja nema osim `LICENSE_EXPIRED`, pa mapa hvata sam engleski
+      tekst — preformulisana poruka na backendu tiho prestane da se prevodi. Zato je fallback
+      originalni string a nikad zamena: neprevedena engleska rečenica i dalje kaže šta ne valja, dok
+      bi „Nepoznata greška" bacila jedini koristan deo. Pokriveno oko 120 poruka, interpolirane
+      vrednosti se čuvaju („Table 12 was not found" → „Sto 12 nije pronađen"), 8 testova.
+
+### Pre nego što bi ovo izašlo iz razvoja
+
+Nije za diplomski, ali neka stoji zapisano da se zna da nije previđeno:
+
+- [ ] Ključ za potpisivanje tokena dolazi iz `appsettings.Development.json`; u produkciji ide u
+      secret store, i različit je po hostu.
+- [ ] `SeedDemoData` isključen, demo nalozi sa poznatim lozinkama obrisani.
+- [ ] CORS na stvarne domene umesto na `localhost`, i HTTPS svuda.
+- [ ] `RestaurantId` na tenant tabelama nema strani ključ ka `Restaurants` (vidi
+      [`docs/er-diagram.md`](docs/er-diagram.md)) — integritet drži query filter, ne baza. Razmotriti
+      FK, uz cenu koju to nosi za brisanje restorana.
 
 ---
 

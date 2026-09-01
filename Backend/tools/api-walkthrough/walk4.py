@@ -1,9 +1,14 @@
 """Staff management: the accounts a venue creates for itself."""
+import api
 from api import call, TILL
 
 
 def run(state):
     owner, manager, waiter = state["owner"], state["manager"], state["waiter"]
+
+    # The account is never deleted — staff are switched off, not erased — so it needs a new address
+    # each run or the very first call here answers 409 and the file returns without testing anything.
+    novi = f"novikonobar{api.RUN}@demo.rs"
 
     print("\n--- ZAPOSLENI ---")
     call("GET", f"{TILL}/api/staff", owner, expect=200, label="lista zaposlenih")
@@ -11,22 +16,22 @@ def run(state):
     call("GET", f"{TILL}/api/staff", waiter, expect=403, label="konobar trazi zaposlene")
 
     s, created = call("POST", f"{TILL}/api/staff", owner,
-                      body={"email": "novikonobar@demo.rs", "password": "Konobar#123",
+                      body={"email": novi, "password": "Konobar#123",
                             "firstName": "Jovan", "lastName": "Jovanovic", "role": 2},
                       expect=200, label="nov konobar")
 
     call("POST", f"{TILL}/api/staff", owner,
-         body={"email": "novikonobar@demo.rs", "password": "Konobar#123",
+         body={"email": novi, "password": "Konobar#123",
                "firstName": "Jovan", "lastName": "Jovanovic", "role": 2},
          expect=409, label="konobar duplo email")
 
     call("POST", f"{TILL}/api/staff", owner,
-         body={"email": "drugivlasnik@demo.rs", "password": "Vlasnik#123",
+         body={"email": f"drugivlasnik{api.RUN}@demo.rs", "password": "Vlasnik#123",
                "firstName": "Drugi", "lastName": "Vlasnik", "role": 4},
          expect=400, label="pokusaj kreiranja drugog vlasnika")
 
     call("POST", f"{TILL}/api/staff", owner,
-         body={"email": "slaba@demo.rs", "password": "slabo", "firstName": "A",
+         body={"email": f"slaba{api.RUN}@demo.rs", "password": "slabo", "firstName": "A",
                "lastName": "B", "role": 2},
          expect=400, label="slaba lozinka")
 
@@ -37,7 +42,7 @@ def run(state):
 
     # The new waiter can sign in and take an order, which is the whole point of the feature.
     s, tok = call("POST", f"{TILL}/api/auth/login",
-                  body={"restaurantSlug": "demo", "email": "novikonobar@demo.rs",
+                  body={"restaurantSlug": "demo", "email": novi,
                         "password": "Konobar#123"},
                   expect=200, label="prijava novog konobara")
     if s == 200:
@@ -52,19 +57,19 @@ def run(state):
          body={"newPassword": "Nova#Lozinka1"}, expect=204, label="reset lozinke")
 
     call("POST", f"{TILL}/api/auth/login",
-         body={"restaurantSlug": "demo", "email": "novikonobar@demo.rs",
+         body={"restaurantSlug": "demo", "email": novi,
                "password": "Konobar#123"},
          expect=401, label="stara lozinka vise ne radi")
 
     call("POST", f"{TILL}/api/auth/login",
-         body={"restaurantSlug": "demo", "email": "novikonobar@demo.rs",
+         body={"restaurantSlug": "demo", "email": novi,
                "password": "Nova#Lozinka1"},
          expect=200, label="nova lozinka radi")
 
     call("POST", f"{TILL}/api/staff/{new_id}/disable", owner, expect=204, label="gasenje naloga")
 
     call("POST", f"{TILL}/api/auth/login",
-         body={"restaurantSlug": "demo", "email": "novikonobar@demo.rs",
+         body={"restaurantSlug": "demo", "email": novi,
                "password": "Nova#Lozinka1"},
          expect=403, label="ugasen nalog ne moze da se prijavi")
 
@@ -81,7 +86,7 @@ def run(state):
 
     call("POST", f"{TILL}/api/staff/{new_id}/enable", owner, expect=204, label="ponovno paljenje")
     call("POST", f"{TILL}/api/auth/login",
-         body={"restaurantSlug": "demo", "email": "novikonobar@demo.rs",
+         body={"restaurantSlug": "demo", "email": novi,
                "password": "Nova#Lozinka1"},
          expect=200, label="prijava posle paljenja")
 

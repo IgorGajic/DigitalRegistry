@@ -1,4 +1,9 @@
-"""Runs the whole backend walkthrough and reports what broke."""
+"""Runs the whole backend walkthrough and reports what broke.
+
+Repeatable: everything it creates carries `api.RUN`, a per-run suffix, and what it cannot make
+unique — a table number — follows the highest already in use. So a second run against the same
+database is a second pass, not a wall of 409s.
+"""
 import sys
 import api
 from api import call, report, TILL
@@ -30,13 +35,15 @@ def main():
                "password": "Demo#Pass123"},
          expect=401, label="login nepostojeci restoran")
 
+    novi_gost = f"novigost{api.RUN}@example.com"
+
     call("POST", f"{TILL}/api/auth/register",
-         body={"restaurantSlug": "demo", "email": "novigost@example.com",
+         body={"restaurantSlug": "demo", "email": novi_gost,
                "password": "Gost#Pass123", "firstName": "Nikola", "lastName": "Nikolic"},
          expect=200, label="register gost")
 
     call("POST", f"{TILL}/api/auth/register",
-         body={"restaurantSlug": "demo", "email": "novigost@example.com",
+         body={"restaurantSlug": "demo", "email": novi_gost,
                "password": "Gost#Pass123", "firstName": "Nikola", "lastName": "Nikolic"},
          expect=409, label="register duplikat")
 
@@ -62,8 +69,10 @@ def main():
     call("GET", f"{TILL}/api/menu/items/{espresso['id']}", waiter, expect=403,
          label="konobar trazi normativ")
 
+    rakija = f"Domaca rakija {api.RUN}"
+
     s, novi = call("POST", f"{TILL}/api/menu/items", manager,
-                   body={"name": "Domaca rakija", "category": "Zestoka pica", "unitPrice": 320},
+                   body={"name": rakija, "category": "Zestoka pica", "unitPrice": 320},
                    expect=200, label="nov artikal")
     if s == 200:
         state["novi"] = novi["id"]
@@ -73,7 +82,7 @@ def main():
          expect=409, label="artikal duplo ime")
 
     call("POST", f"{TILL}/api/menu/items", manager,
-         body={"id": state.get("novi"), "name": "Domaca rakija", "category": "Zestoka pica",
+         body={"id": state.get("novi"), "name": rakija, "category": "Zestoka pica",
                "unitPrice": 350},
          expect=200, label="izmena artikla")
 
@@ -111,23 +120,36 @@ def main():
     call("GET", f"{TILL}/api/tables/{table['id']}", manager, expect=200, label="sto po id")
     call("GET", f"{TILL}/api/tables/{table['id']}", waiter, expect=403, label="konobar trazi sto")
 
+    # One past the highest in use, rather than a fixed 99 a crashed run may have left behind.
+    broj = 1 + max((t["tableNumber"]
+                    for t in [*[x for r in fp["rooms"] for x in r["tables"]], *fp["unplacedTables"]]),
+                   default=0)
+
     s, novisto = call("POST", f"{TILL}/api/tables", manager,
-                      body={"tableNumber": 99, "capacity": 4}, expect=201, label="nov sto")
+                      body={"tableNumber": broj, "capacity": 4}, expect=201, label="nov sto")
     if s == 201:
         state["novisto"] = novisto["id"]
 
-    call("POST", f"{TILL}/api/tables", manager, body={"tableNumber": 99, "capacity": 4},
+    call("POST", f"{TILL}/api/tables", manager, body={"tableNumber": broj, "capacity": 4},
          expect=409, label="sto duplo broj")
 
     if state.get("novisto"):
         call("PUT", f"{TILL}/api/tables/{state['novisto']}", manager,
-             body={"id": state["novisto"], "tableNumber": 99, "capacity": 6, "isActive": True},
+             body={"id": state["novisto"], "tableNumber": broj, "capacity": 6, "isActive": True},
              expect=204, label="izmena stola")
         call("POST", f"{TILL}/api/tables/{state['novisto']}/qr-code", manager, expect=200,
              label="rotacija QR koda")
 
+    call("GET", f"{TILL}/api/tables/qr-codes", manager, expect=200, label="list QR kodova")
+    call("GET", f"{TILL}/api/tables/qr-codes?includeInactive=true", owner, expect=200,
+         label="QR kodovi + neaktivni")
+    call("GET", f"{TILL}/api/tables/qr-codes", waiter, expect=403,
+         label="konobar trazi QR kodove")
+
+    terasa = f"Terasa {api.RUN}"
+
     s, room = call("POST", f"{TILL}/api/floor-plan/rooms", owner,
-                   body={"name": "Terasa", "canvasWidth": 800, "canvasHeight": 600},
+                   body={"name": terasa, "canvasWidth": 800, "canvasHeight": 600},
                    expect=200, label="nova prostorija")
     if s == 200:
         state["room"] = room["id"]
@@ -143,7 +165,7 @@ def main():
                       "width": 80, "height": 80, "shape": 1, "rotation": 0}]},
                  expect=400, label="sto van platna")
         call("PUT", f"{TILL}/api/floor-plan/rooms/{room['id']}", owner,
-             body={"id": room["id"], "name": "Terasa", "displayOrder": 5,
+             body={"id": room["id"], "name": terasa, "displayOrder": 5,
                    "canvasWidth": 900, "canvasHeight": 700},
              expect=200, label="izmena prostorije")
         call("PUT", f"{TILL}/api/floor-plan/rooms/{room['id']}/layout", waiter,

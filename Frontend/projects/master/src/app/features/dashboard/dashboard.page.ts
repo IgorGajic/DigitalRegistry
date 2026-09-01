@@ -1,22 +1,45 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
-import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'shared';
+import {
+  BarChart,
+  BarPoint,
+  LoadingState,
+  PlatformApiService,
+  PlatformDashboardDto,
+  daysLabel,
+} from 'shared';
 
 /**
  * The platform at a glance.
  *
- * The revenue chart is drawn as plain bars rather than pulled in from a charting library: it is one
- * series of twelve values, and a dependency the size of a chart library would be most of the bundle.
+ * The revenue chart is the shared {@link BarChart}, the same component the till draws its takings
+ * with. It used to be a row of divs whose height was a percentage of the largest month — the same
+ * question answered a second time, and differently: no zero line, no scale, and a tooltip that
+ * behaved unlike the other one. Two charts in a product that should have one is a thing a reader
+ * has to learn twice.
+ *
+ * Still no charting library. One series of twelve values does not justify a dependency that would
+ * be most of the bundle; it justifies one component, written once and used in both hosts.
  */
 @Component({
   selector: 'mstr-dashboard',
-  imports: [CurrencyPipe, RouterLink, MatButtonModule, MatCardModule, MatIconModule, MatTooltipModule],
+  imports: [
+    CurrencyPipe,
+    RouterLink,
+    MatCardModule,
+    MatIconModule,
+    MatProgressBarModule,
+    BarChart,
+  ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <h1>Pregled</h1>
 
@@ -70,23 +93,15 @@ import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'sha
 
         <div class="dash__panels">
           <mat-card>
-            <mat-card-header>
-              <mat-card-title>Prihod po mesecima</mat-card-title>
-            </mat-card-header>
             <mat-card-content>
               @if (d.monthlyLicenseRevenue.length) {
-                <div class="dash__chart">
-                  @for (month of d.monthlyLicenseRevenue; track month.year + '-' + month.month) {
-                    <div class="dash__bar-wrap">
-                      <div
-                        class="dash__bar"
-                        [style.height.%]="height(month)"
-                        [matTooltip]="tooltip(month)"
-                      ></div>
-                      <span class="dash__bar-label">{{ month.month }}.</span>
-                    </div>
-                  }
-                </div>
+                <dr-bar-chart
+                  [points]="months()"
+                  eyebrow="Prihod po mesecima"
+                  peakLabel="najjači mesec"
+                  [formatValue]="money"
+                  summary="Prihod od licenci po mesecima."
+                />
               } @else {
                 <p class="dr-empty">Nema evidentiranih uplata.</p>
               }
@@ -106,7 +121,7 @@ import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'sha
                       <a [routerLink]="['/restorani', restaurant.id]">{{ restaurant.name }}</a>
                       <span class="dr-muted">{{ restaurant.slug }}</span>
                       <strong [class.dash__warn-text]="restaurant.daysRemaining <= 7">
-                        {{ restaurant.daysRemaining }} dana
+                        {{ restaurant.daysRemaining }} {{ daysLabel(restaurant.daysRemaining) }}
                       </strong>
                     </li>
                   }
@@ -117,6 +132,8 @@ import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'sha
             </mat-card-content>
           </mat-card>
         </div>
+      } @else if (!loading.active()) {
+        <p class="dr-empty">Pregled trenutno nije dostupan. Osvežite stranicu.</p>
       }
     </div>
   `,
@@ -142,6 +159,7 @@ import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'sha
 
     .dash__tiles strong {
       font-size: 1.6rem;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
@@ -176,39 +194,6 @@ import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'sha
       align-items: start;
     }
 
-    .dash__chart {
-      display: flex;
-      align-items: flex-end;
-      gap: 6px;
-      height: 180px;
-      padding-top: 8px;
-    }
-
-    .dash__bar-wrap {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      align-items: center;
-      height: 100%;
-      gap: 4px;
-    }
-
-    .dash__bar {
-      width: 100%;
-      /* Capped so a short series still reads as a bar chart. Without it a single month fills the
-         whole card and looks like a block of colour rather than one month's takings. */
-      max-width: 44px;
-      min-height: 2px;
-      background: var(--mat-sys-primary);
-      border-radius: 4px 4px 0 0;
-    }
-
-    .dash__bar-label {
-      font-size: 0.7rem;
-      color: var(--mat-sys-on-surface-variant);
-    }
-
     .dash__expiring {
       list-style: none;
       margin: 0;
@@ -234,21 +219,53 @@ import { MonthlyRevenueDto, PlatformApiService, PlatformDashboardDto } from 'sha
 export class DashboardPage {
   private readonly api = inject(PlatformApiService);
 
+  protected readonly loading = new LoadingState();
+  protected readonly daysLabel = daysLabel;
   protected readonly data = signal<PlatformDashboardDto | null>(null);
 
-  private readonly peak = computed(() =>
-    Math.max(1, ...(this.data()?.monthlyLicenseRevenue ?? []).map((month) => month.amount)),
+  constructor() {
+    this.loading.track(this.api.dashboard()).subscribe((dashboard) => this.data.set(dashboard));
+  }
+
+  /**
+   * The months, as the shared chart wants them.
+   *
+   * These were a row of divs whose height was a percentage of the largest month — the same question
+   * the till's takings chart answers, answered differently, with no zero line and no scale. The API
+   * fills in the empty months of the requested window, because a month with no payments is a fact
+   * and not an absence of one, and the chart draws those as the hairline it draws any zero.
+   */
+  protected readonly months = computed<BarPoint[]>(() =>
+    (this.data()?.monthlyLicenseRevenue ?? []).map((month) => ({
+      label: `${month.month}.`,
+      value: month.amount,
+      title: `${monthNames[month.month - 1]} ${month.year}.`,
+      notes: [`${month.paymentCount} ${paymentsLabel(month.paymentCount)}`],
+    })),
   );
 
-  constructor() {
-    this.api.dashboard().subscribe((dashboard) => this.data.set(dashboard));
+  /** Passed into the chart, so it is an arrow rather than a method: it travels without `this`. */
+  protected readonly money = (value: number): string =>
+    `${Math.round(value).toLocaleString('sr-Latn-RS')} RSD`;
+}
+
+const monthNames = [
+  'Januar', 'Februar', 'Mart', 'April', 'Maj', 'Jun',
+  'Jul', 'Avgust', 'Septembar', 'Oktobar', 'Novembar', 'Decembar',
+];
+
+/** "uplata" / "uplate" / "uplata" — feminine, so the plural returns to the singular's stem. */
+function paymentsLabel(count: number): string {
+  const last = Math.abs(count) % 10;
+  const lastTwo = Math.abs(count) % 100;
+
+  if (last === 1 && lastTwo !== 11) {
+    return 'uplata';
   }
 
-  protected height(month: MonthlyRevenueDto): number {
-    return (month.amount / this.peak()) * 100;
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) {
+    return 'uplate';
   }
 
-  protected tooltip(month: MonthlyRevenueDto): string {
-    return `${month.month}/${month.year}: ${month.amount.toLocaleString('sr-RS')} RSD (${month.paymentCount} uplata)`;
-  }
+  return 'uplata';
 }

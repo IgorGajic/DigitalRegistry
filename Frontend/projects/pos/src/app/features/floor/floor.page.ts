@@ -13,7 +13,9 @@ import {
   TableStatus,
   TillApiService,
   elapsedSince,
+  seatsLabel,
   tableStatusLabels,
+  tablesLabel,
 } from 'shared';
 
 /**
@@ -32,6 +34,8 @@ import {
     }
 
     <div class="dr-page">
+      <h1 class="floor__title">Sala</h1>
+
       @if (plan(); as data) {
         @if (data.rooms.length === 0) {
           <div class="dr-empty">
@@ -85,7 +89,7 @@ import {
                         [attr.aria-label]="describe(table)"
                       >
                         <span class="floor__number">{{ table.tableNumber }}</span>
-                        <span class="floor__seats">{{ table.capacity }} mesta</span>
+                        <span class="floor__seats">{{ table.capacity }} {{ seatsLabel(table.capacity) }}</span>
 
                         @if (table.openOrderIds.length > 0) {
                           <span class="floor__total">
@@ -109,7 +113,9 @@ import {
           @if (data.unplacedTables.length) {
             <p class="dr-muted floor__unplaced">
               <mat-icon inline>info</mat-icon>
-              {{ data.unplacedTables.length }} sto(lova) nije raspoređeno ni u jednu prostoriju.
+              {{ data.unplacedTables.length }} {{ tablesLabel(data.unplacedTables.length) }}
+              {{ data.unplacedTables.length === 1 ? 'nije raspoređen' : 'nije raspoređeno' }} ni u
+              jednu prostoriju.
             </p>
           }
         }
@@ -117,6 +123,13 @@ import {
     </div>
   `,
   styles: `
+    /* Visually quiet: the room itself is what the waiter reads, not the word above it. The heading
+       is here so the page announces itself to a screen reader like every other one does. */
+    .floor__title {
+      margin: 0 0 4px;
+      font-size: 1.5rem;
+    }
+
     .floor__legend {
       display: flex;
       align-items: center;
@@ -178,8 +191,10 @@ import {
     }
 
     .floor__number {
+      font-family: var(--dr-font-mono);
       font-size: clamp(0.9rem, 1.6vw, 1.4rem);
-      font-weight: 700;
+      font-weight: 500;
+      letter-spacing: -0.03em;
     }
 
     .floor__seats {
@@ -190,6 +205,7 @@ import {
     .floor__total {
       font-size: 0.75rem;
       font-weight: 600;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
@@ -223,6 +239,8 @@ export class FloorPage {
   private readonly realtime = inject(RealtimeService);
 
   protected readonly tableStatusLabels = tableStatusLabels;
+  protected readonly seatsLabel = seatsLabel;
+  protected readonly tablesLabel = tablesLabel;
   protected readonly plan = signal<FloorPlanDto | null>(null);
   protected readonly loading = signal(false);
   protected readonly activeRoom = signal(0);

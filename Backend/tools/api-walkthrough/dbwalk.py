@@ -518,7 +518,12 @@ def section_reservations(owner, waiter, manager, tenant):
     tid = db.scalar("SELECT TOP 1 CONVERT(char(36), Id) FROM [Tables] "
                     "WHERE IsActive = 1 AND Capacity >= 4 ORDER BY TableNumber")
 
-    status, first = call("POST", f"{TILL}/api/reservations", owner,
+    # A guest books for themselves: no name given, so it lands on their own account. Staff are
+    # deliberately not allowed to do this — a booking with no name would go down under whoever took
+    # it, which is the fault this endpoint was changed to make impossible.
+    guest = sign_in("guest")
+
+    status, first = call("POST", f"{TILL}/api/reservations", guest,
                          body={"tableId": tid, "startTime": utc(60), "endTime": utc(180),
                                "partySize": 4},
                          expect=201, label="nova rezervacija")
@@ -527,22 +532,51 @@ def section_reservations(owner, waiter, manager, tenant):
 
     rid = first["id"]
     row = db.query("SELECT Status, PartySize, CONVERT(char(36), GuestId), "
-                   f"CONVERT(char(36), RestaurantId) FROM Reservations WHERE Id = '{rid}'")[0]
+                   f"CONVERT(char(36), RestaurantId), ContactName, "
+                   f"CONVERT(char(36), TakenByUserId) FROM Reservations WHERE Id = '{rid}'")[0]
     db.check("rezervacija na cekanju (Status 1)", row[0], "1")
     db.check("broj gostiju upisan", row[1], "4")
     db.check_true("gost je onaj ko je rezervisao", row[2] not in (None, "NULL"))
     db.check("rezervacija pripada demo restoranu", row[3].lower(), tenant.lower())
+    db.check("sopstvena rezervacija nema upisano ime", row[4], "NULL")
+    db.check("sopstvenu rezervaciju niko nije primio", row[5], "NULL")
+
+    # And the other kind: taken at the desk, for somebody with no account at all. The point of the
+    # row check is that it is *not* filed under the waiter who took it.
+    ime = f"Marko {stamp()}"
+    status, desk = call("POST", f"{TILL}/api/reservations", waiter,
+                        body={"tableId": tid, "startTime": utc(1500), "endTime": utc(1620),
+                              "partySize": 2, "contactName": ime, "contactPhone": "060111222"},
+                        expect=201, label="rezervacija primljena telefonom")
+
+    if status == 201:
+        did = desk["id"]
+        row = db.query("SELECT CONVERT(char(36), GuestId), ContactName, ContactPhone, "
+                       f"CONVERT(char(36), TakenByUserId) FROM Reservations WHERE Id = '{did}'")[0]
+        waiter_id = db.scalar("SELECT CONVERT(char(36), Id) FROM AspNetUsers "
+                              "WHERE Email = 'waiter@digitalregistry.local'")
+        db.check("rezervacija sa telefona nema nalog gosta", row[0], "NULL")
+        db.check("ime gosta upisano", row[1], ime)
+        db.check("kontakt telefon upisan", row[2], "060111222")
+        db.check("zabelezeno ko je primio", row[3].lower(), waiter_id.lower())
+
+        call("POST", f"{TILL}/api/reservations/{did}/cancel", manager, expect=204,
+             label="otkazivanje telefonske rezervacije")
+
+    call("POST", f"{TILL}/api/reservations", waiter,
+         body={"tableId": tid, "startTime": utc(1700), "endTime": utc(1800), "partySize": 2},
+         expect=400, label="osoblje bez imena gosta")
 
     call("GET", f"{TILL}/api/reservations/schedule", waiter, expect=200, label="dnevni pregled")
-    call("GET", f"{TILL}/api/reservations/mine", owner, expect=200, label="moje rezervacije")
-    call("GET", f"{TILL}/api/reservations/{rid}", owner, expect=200, label="rezervacija po id")
+    call("GET", f"{TILL}/api/reservations/mine", guest, expect=200, label="moje rezervacije")
+    call("GET", f"{TILL}/api/reservations/{rid}", guest, expect=200, label="rezervacija po id")
 
     call("POST", f"{TILL}/api/reservations/{rid}/check-in", waiter, expect=204,
          label="prijava dolaska")
     db.check("rezervacija zavrsena dolaskom (Status 4)",
              db.scalar(f"SELECT Status FROM Reservations WHERE Id = '{rid}'"), "4")
 
-    status, second = call("POST", f"{TILL}/api/reservations", owner,
+    status, second = call("POST", f"{TILL}/api/reservations", guest,
                           body={"tableId": tid, "startTime": utc(300), "endTime": utc(420),
                                 "partySize": 2},
                           expect=201, label="druga rezervacija")

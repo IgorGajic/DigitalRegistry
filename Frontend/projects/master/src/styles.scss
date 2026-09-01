@@ -1,51 +1,51 @@
 @use '@angular/material' as mat;
+@use '../../shared/styles/foundation' as dr;
+@use '../../shared/styles/responsive-table' as rt;
+@use '../../shared/styles/platform_theme-colors' as platform;
 
+// The platform administration's theme.
+//
 // Deliberately a different hue from the till, so it is obvious at a glance which application is on
-// screen — the two are administered by different people and confusing them would be costly.
+// screen — the two are administered by different people and confusing them would be costly. Plum
+// rather than the stock violet, and far enough from the till's petrol that the two never read alike
+// on a screenshot or across a desk.
+//
+// Density -1, where the till stays at 0: this is worked sitting down with a mouse, on tables of
+// licences and payments, and the extra rows in view are worth more here than the larger targets.
 html {
   color-scheme: light;
 
   @include mat.theme((
-    color: mat.$violet-palette,
-    typography: Roboto,
-    density: 0,
+    color: (
+      primary: platform.$primary-palette,
+      tertiary: platform.$tertiary-palette,
+    ),
+    typography: (
+      brand-family: dr.$dr-brand,
+      plain-family: dr.$dr-plain,
+      bold-weight: 700,
+      medium-weight: 500,
+      regular-weight: 400,
+    ),
+    density: -1,
   ));
 }
 
+@include dr.foundation;
+
+// Every Material table on this host stacks into cards below the breakpoint. The column
+// labels live with the screen that owns the table; only the stacking is shared.
+@include rt.structure;
+
 :root {
+  // Licence states, the platform's equivalent of the till's table states, and the only saturated
+  // colour on this application.
   --dr-valid: #2e7d32;
   --dr-expiring: #ef6c00;
   --dr-expired: #c62828;
   --dr-suspended: #6a1b9a;
-
-  --dr-gap: 16px;
-  --dr-radius: 10px;
-}
-
-html,
-body {
-  height: 100%;
-  margin: 0;
-  font-family: Roboto, 'Helvetica Neue', sans-serif;
-  background: var(--mat-sys-surface-container-low);
-  color: var(--mat-sys-on-surface);
 }
 
 .dr-page {
-  padding: var(--dr-gap);
   max-width: 1400px;
-  margin: 0 auto;
-}
-
-.dr-toolbar-spacer {
-  flex: 1 1 auto;
-}
-
-.dr-muted {
-  color: var(--mat-sys-on-surface-variant);
-}
-
-.dr-numeric {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }

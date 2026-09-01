@@ -6,15 +6,21 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { provideNativeDateAdapter } from '@angular/material/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
+  ConfirmDialog,
+  ConfirmDialogData,
+  LoadingState,
   ScheduledShiftDto,
   ShiftAssignmentDto,
   ShiftTemplateDto,
@@ -24,6 +30,7 @@ import {
   WeekDays,
   WeeklyScheduleDto,
   addDays,
+  assignmentsLabel,
   describeDays,
   shortTime,
   startOfWeek,
@@ -50,14 +57,21 @@ import {
     MatCardModule,
     MatChipsModule,
     MatDatepickerModule,
+    MatDialogModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatProgressBarModule,
     MatSelectModule,
+    MatSlideToggleModule,
     MatTabsModule,
     MatTooltipModule,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <h1>Smene</h1>
 
@@ -80,6 +94,7 @@ import {
             </div>
 
             @if (week(); as grid) {
+              <div class="sched__scroll">
               <div class="sched__grid" [style.--columns]="grid.days.length">
                 <div class="sched__cell sched__cell--head">Konobar</div>
                 @for (day of grid.days; track day) {
@@ -106,6 +121,7 @@ import {
                   }
                   <div class="sched__cell dr-numeric">{{ row.totalHours | number: '1.0-1' }}</div>
                 }
+              </div>
               </div>
 
               @if (grid.waiters.length === 0) {
@@ -276,47 +292,120 @@ import {
 
         <mat-tab label="Šabloni smena">
           <mat-card class="sched__panel">
-            <div class="sched__fields">
-              <mat-form-field appearance="outline">
-                <mat-label>Naziv</mat-label>
-                <input matInput [(ngModel)]="templateName" placeholder="npr. I smena" />
-              </mat-form-field>
+            <mat-card-header>
+              <mat-card-title>
+                {{ editingTemplate() ? 'Izmena šablona' : 'Nov šablon' }}
+              </mat-card-title>
+              @if (editingTemplate()) {
+                <mat-card-subtitle>
+                  Izmena važi za smene koje se tek generišu. Već upisane smene zadržavaju vremena sa
+                  kojima su napravljene.
+                </mat-card-subtitle>
+              }
+            </mat-card-header>
 
-              <mat-form-field appearance="outline">
-                <mat-label>Početak</mat-label>
-                <input matInput type="time" [(ngModel)]="templateStart" />
-              </mat-form-field>
+            <mat-card-content>
+              <div class="sched__fields">
+                <mat-form-field appearance="outline">
+                  <mat-label>Naziv</mat-label>
+                  <input matInput [(ngModel)]="templateName" placeholder="npr. I smena" />
+                </mat-form-field>
 
-              <mat-form-field appearance="outline">
-                <mat-label>Kraj</mat-label>
-                <input matInput type="time" [(ngModel)]="templateEnd" />
-                <mat-hint>Kraj pre početka znači da smena ide preko ponoći</mat-hint>
-              </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Početak</mat-label>
+                  <input matInput type="time" [(ngModel)]="templateStart" />
+                </mat-form-field>
 
-              <button mat-flat-button [disabled]="!templateName.trim()" (click)="saveTemplate()">
-                Sačuvaj
-              </button>
+                <mat-form-field appearance="outline">
+                  <mat-label>Kraj</mat-label>
+                  <input matInput type="time" [(ngModel)]="templateEnd" />
+                  <mat-hint>Kraj pre početka znači da smena ide preko ponoći</mat-hint>
+                </mat-form-field>
+
+                <button mat-flat-button [disabled]="!templateName.trim()" (click)="saveTemplate()">
+                  {{ editingTemplate() ? 'Sačuvaj izmenu' : 'Napravi šablon' }}
+                </button>
+
+                @if (editingTemplate()) {
+                  <button mat-button (click)="newTemplate()">Odustani</button>
+                }
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="sched__panel">
+            <div class="sched__weeknav">
+              <span class="dr-muted">Šabloni po kojima se generiše raspored</span>
+              <span class="dr-toolbar-spacer"></span>
+              <mat-slide-toggle [(ngModel)]="includeRetired" (change)="loadTemplates()">
+                Prikaži povučene
+              </mat-slide-toggle>
             </div>
 
-            <ul class="sched__templates">
-              @for (template of templates(); track template.id) {
-                <li>
-                  <strong>{{ template.name }}</strong>
-                  <span>{{ time(template.startTime) }}–{{ time(template.endTime) }}</span>
-                  <span class="dr-muted">{{ template.durationHours }} h</span>
-                  @if (template.crossesMidnight) {
-                    <mat-chip>preko ponoći</mat-chip>
-                  }
-                  <span class="dr-muted">{{ template.assignmentCount }} dodela</span>
-                </li>
-              }
-            </ul>
+            @if (templates().length === 0) {
+              <p class="dr-empty">
+                Nema nijednog šablona. Napravite prvi da biste dodeljivali smene.
+              </p>
+            } @else {
+              <ul class="sched__templates">
+                @for (template of templates(); track template.id) {
+                  <li [class.sched__template--off]="!template.isActive">
+                    <strong>{{ template.name }}</strong>
+                    <span>{{ time(template.startTime) }}–{{ time(template.endTime) }}</span>
+                    <span class="dr-muted">{{ template.durationHours }} h</span>
+                    @if (template.crossesMidnight) {
+                      <mat-chip>preko ponoći</mat-chip>
+                    }
+                    @if (!template.isActive) {
+                      <mat-chip>povučen</mat-chip>
+                    }
+                    <span class="dr-muted">
+                      {{ template.assignmentCount }} {{ assignmentsLabel(template.assignmentCount) }}
+                    </span>
+
+                    <span class="dr-toolbar-spacer"></span>
+
+                    <button
+                      mat-icon-button
+                      (click)="editTemplate(template)"
+                      matTooltip="Izmeni šablon"
+                      aria-label="Izmeni šablon"
+                    >
+                      <mat-icon>edit</mat-icon>
+                    </button>
+
+                    @if (template.isActive) {
+                      <button
+                        mat-icon-button
+                        color="warn"
+                        (click)="setTemplateActive(template, false)"
+                        matTooltip="Povuci iz upotrebe"
+                        aria-label="Povuci iz upotrebe"
+                      >
+                        <mat-icon>block</mat-icon>
+                      </button>
+                    } @else {
+                      <button
+                        mat-icon-button
+                        (click)="setTemplateActive(template, true)"
+                        matTooltip="Vrati u upotrebu"
+                        aria-label="Vrati u upotrebu"
+                      >
+                        <mat-icon>restart_alt</mat-icon>
+                      </button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
           </mat-card>
         </mat-tab>
       </mat-tab-group>
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     h1 {
       margin: 0 0 16px;
       font-size: 1.5rem;
@@ -428,6 +517,11 @@ import {
       border-bottom: 1px solid var(--mat-sys-outline-variant);
     }
 
+    /* A retired template stays on the list: assignments already made from it still refer to it. */
+    .sched__template--off {
+      opacity: 0.55;
+    }
+
     .sched__conflicts {
       margin-top: 16px;
       padding: 12px;
@@ -445,13 +539,34 @@ import {
       margin: 0;
       padding-left: 20px;
     }
+
+    /* The rota is waiters × days and cannot stack: a shift out of its day column means nothing.
+       So this one scrolls sideways, and the scroll sits on the grid rather than on the page. */
+    .sched__scroll {
+      @include rt.scroll-below(760px);
+    }
+
+    @media (max-width: 900px) {
+      .sched__fields mat-form-field {
+        min-width: 0;
+        flex: 1 1 100%;
+      }
+
+      .sched__assignments li,
+      .sched__templates li {
+        flex-wrap: wrap;
+      }
+    }
   `,
 })
 export class SchedulePage {
   private readonly api = inject(TillApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
+  protected readonly loading = new LoadingState();
   protected readonly WeekDays = WeekDays;
+  protected readonly assignmentsLabel = assignmentsLabel;
   protected readonly weekDayOrder = weekDayOrder;
 
   protected readonly week = signal<WeeklyScheduleDto | null>(null);
@@ -477,6 +592,10 @@ export class SchedulePage {
   protected templateStart = '07:00';
   protected templateEnd = '15:00';
 
+  /** Set while an existing template is being corrected; null while a new one is being written. */
+  protected readonly editingTemplate = signal<string | null>(null);
+  protected includeRetired = false;
+
   protected readonly lastDay = computed(() => {
     const grid = this.week();
 
@@ -490,8 +609,8 @@ export class SchedulePage {
 
     // Only waiters can be assigned a shift, which the API enforces; filtering here keeps the picker
     // from offering managers who would simply be refused.
-    this.api
-      .staff()
+    this.loading
+      .track(this.api.staff())
       .subscribe((staff) => this.waiters.set(staff.filter((m) => m.role === UserRole.Waiter)));
   }
 
@@ -533,8 +652,8 @@ export class SchedulePage {
   }
 
   protected generate(): void {
-    this.api
-      .generateSchedule(toDateOnly(this.generateFrom), toDateOnly(this.generateTo))
+    this.loading
+      .track(this.api.generateSchedule(toDateOnly(this.generateFrom), toDateOnly(this.generateTo)))
       .subscribe((result) => {
         this.conflicts.set(result.conflicts);
         this.snackBar.open(
@@ -561,37 +680,155 @@ export class SchedulePage {
       });
   }
 
+  /**
+   * Ends a standing assignment.
+   *
+   * Shifts already generated from it survive — the API leaves them behind on purpose — so the
+   * confirmation says so. Somebody expecting this to clear next month's rota would otherwise find
+   * it still there and assume nothing happened.
+   */
   protected removeAssignment(assignment: ShiftAssignmentDto): void {
-    this.api.deleteShiftAssignment(assignment.id).subscribe(() => {
-      this.loadAssignments();
-      this.loadTemplates();
-    });
+    const data: ConfirmDialogData = {
+      title: 'Ukinuti stalnu dodelu?',
+      message:
+        `${assignment.waiterName}, ${assignment.shiftTemplateName}, `
+        + `${describeDays(assignment.days)}. Već generisane smene ostaju u rasporedu — ukida se `
+        + 'samo pravilo po kojem se ubuduće generišu nove.',
+      confirmText: 'Ukini dodelu',
+      destructive: true,
+    };
+
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+
+        this.api.deleteShiftAssignment(assignment.id).subscribe(() => {
+          this.loadAssignments();
+          this.loadTemplates();
+        });
+      });
   }
 
+  /**
+   * Writes a template, creating one or correcting the one being edited.
+   *
+   * The API takes the same call for both and keys on the id, so there is one path here rather than
+   * two. A template whose hours were mistyped could previously never be corrected: the only way out
+   * was a second template beside the wrong one, and the wrong one stayed on the list forever.
+   */
   protected saveTemplate(): void {
-    this.api
-      .saveShiftTemplate({
-        name: this.templateName.trim(),
-        // The API takes a TimeOnly, which serialises as HH:mm:ss.
-        startTime: `${this.templateStart}:00`,
-        endTime: `${this.templateEnd}:00`,
-        isActive: true,
-      })
+    const id = this.editingTemplate();
+    const existing = id ? this.templates().find((template) => template.id === id) : undefined;
+
+    this.loading
+      .track(
+        this.api.saveShiftTemplate({
+          id,
+          name: this.templateName.trim(),
+          // The API takes a TimeOnly, which serialises as HH:mm:ss.
+          startTime: `${this.templateStart}:00`,
+          endTime: `${this.templateEnd}:00`,
+          // Editing must not quietly revive a retired template.
+          isActive: existing ? existing.isActive : true,
+        }),
+      )
       .subscribe(() => {
-        this.templateName = '';
+        this.snackBar.open(id ? 'Šablon je izmenjen.' : 'Šablon je napravljen.', 'U redu', {
+          duration: 4000,
+        });
+        this.newTemplate();
         this.loadTemplates();
+        this.loadAssignments();
+      });
+  }
+
+  /** Loads a template into the form above the list. */
+  protected editTemplate(template: ShiftTemplateDto): void {
+    this.editingTemplate.set(template.id);
+    this.templateName = template.name;
+    this.templateStart = shortTime(template.startTime);
+    this.templateEnd = shortTime(template.endTime);
+  }
+
+  /** Clears the form back to writing a new template. */
+  protected newTemplate(): void {
+    this.editingTemplate.set(null);
+    this.templateName = '';
+    this.templateStart = '07:00';
+    this.templateEnd = '15:00';
+  }
+
+  /**
+   * Retires a template, or brings it back.
+   *
+   * There is no delete: a template that shifts were generated from has to stay reachable, or the
+   * rota would refer to something that no longer exists. Retiring keeps it out of the pickers while
+   * leaving everything built from it intact — which is what "deleting" one actually means here, and
+   * the confirmation says so rather than promising removal.
+   */
+  protected setTemplateActive(template: ShiftTemplateDto, active: boolean): void {
+    const apply = () =>
+      this.loading
+        .track(
+          this.api.saveShiftTemplate({
+            id: template.id,
+            name: template.name,
+            startTime: template.startTime,
+            endTime: template.endTime,
+            isActive: active,
+          }),
+        )
+        .subscribe(() => {
+          this.snackBar.open(
+            active ? 'Šablon je vraćen u upotrebu.' : 'Šablon je povučen iz upotrebe.',
+            'U redu',
+            { duration: 4000 },
+          );
+          this.loadTemplates();
+        });
+
+    if (active) {
+      apply();
+      return;
+    }
+
+    const data: ConfirmDialogData = {
+      title: `Povući „${template.name}“ iz upotrebe?`,
+      message:
+        'Šablon se više ne nudi pri dodeli i po njemu se ne generišu nove smene. '
+        + `${template.assignmentCount} ${assignmentsLabel(template.assignmentCount)} i sve već `
+        + 'generisane smene ostaju netaknute, a šablon se istim potezom vraća u upotrebu.',
+      confirmText: 'Povuci šablon',
+      destructive: true,
+    };
+
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (confirmed) {
+          apply();
+        }
       });
   }
 
   private loadWeek(): void {
-    this.api.weeklySchedule(toDateOnly(this.weekStart)).subscribe((grid) => this.week.set(grid));
+    this.loading
+      .track(this.api.weeklySchedule(toDateOnly(this.weekStart)))
+      .subscribe((grid) => this.week.set(grid));
   }
 
-  private loadTemplates(): void {
-    this.api.shiftTemplates().subscribe((rows) => this.templates.set(rows));
+  protected loadTemplates(): void {
+    this.loading
+      .track(this.api.shiftTemplates(this.includeRetired))
+      .subscribe((rows) => this.templates.set(rows));
   }
 
   private loadAssignments(): void {
-    this.api.shiftAssignments().subscribe((rows) => this.assignments.set(rows));
+    this.loading.track(this.api.shiftAssignments()).subscribe((rows) => this.assignments.set(rows));
   }
 }

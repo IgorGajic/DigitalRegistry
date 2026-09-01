@@ -104,6 +104,7 @@ export interface PaymentDialogResult {
 
     .pay__total strong {
       font-size: 1.8rem;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
@@ -144,6 +145,7 @@ export interface PaymentDialogResult {
 
     .pay__change strong {
       font-size: 1.4rem;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
   `,

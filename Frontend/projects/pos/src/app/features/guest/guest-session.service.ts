@@ -8,6 +8,7 @@ import {
   MenuItemDto,
   OrderDto,
   TABLE_SESSION_REQUEST,
+  TableTabDto,
 } from 'shared';
 
 /** The part of a table session the guest's screen needs after the token itself. */
@@ -56,6 +57,16 @@ export class GuestSessionService {
 
   placeOrder(items: { menuItemId: string; quantity: number }[]): Observable<OrderDto> {
     return this.http.post<OrderDto>(`${this.baseUrl}/api/orders/qr`, { items }, this.asTable());
+  }
+
+  /**
+   * What the table has had so far, across every round still running.
+   *
+   * Each round opens its own order, so no single response the guest has already seen adds up to the
+   * table's running total; the API sums them from the table on the session token.
+   */
+  tab(): Observable<TableTabDto> {
+    return this.http.get<TableTabDto>(`${this.baseUrl}/api/orders/mine`, this.asTable());
   }
 
   clear(): void {

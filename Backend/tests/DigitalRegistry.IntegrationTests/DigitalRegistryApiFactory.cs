@@ -1,5 +1,8 @@
 using DigitalRegistry.Application.Common.Models;
 using DigitalRegistry.Application.Features.Auth.Commands.Login;
+using DigitalRegistry.Application.Features.FloorPlan;
+using DigitalRegistry.Application.Features.Tables;
+using DigitalRegistry.Application.Features.Tables.Commands.InitializeTableSession;
 using DigitalRegistry.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +38,7 @@ public class DigitalRegistryApiFactory : WebApplicationFactory<Program>
     public const string OwnerEmail = "owner@digitalregistry.local";
     public const string ManagerEmail = "manager@digitalregistry.local";
     public const string WaiterEmail = "waiter@digitalregistry.local";
+    public const string GuestEmail = "guest@digitalregistry.local";
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -84,6 +88,49 @@ public class DigitalRegistryApiFactory : WebApplicationFactory<Program>
 
         return client;
     }
+
+    /// <summary>
+    /// Scans a table's QR code and returns a client carrying the resulting table session.
+    /// </summary>
+    /// <remarks>
+    /// Two steps, because that is what happens in the restaurant: the token is a credential only
+    /// management may read, and it is exchanged anonymously for a token scoped to that table.
+    /// </remarks>
+    /// <param name="manager">A client able to read table tokens, which a guest never is.</param>
+    /// <param name="tableId">The table to sit at, or null for the first one with no tab running.</param>
+    public async Task<TableSession> OpenTableSessionAsync(HttpClient manager, Guid? tableId = null)
+    {
+        var chosen = tableId;
+
+        if (chosen is null)
+        {
+            var plan = await manager.GetFromJsonAsync<FloorPlanDto>("/api/floor-plan");
+
+            chosen = plan!.Rooms.SelectMany(room => room.Tables)
+                .First(candidate => candidate.OpenOrderIds.Count == 0)
+                .Id;
+        }
+
+        var table = await manager.GetFromJsonAsync<TableDto>($"/api/tables/{chosen}");
+
+        var client = CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/tables/sessions",
+            new InitializeTableSessionCommand(table!.QrCodeToken));
+
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<AuthenticationResult>();
+
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", result!.AccessToken);
+
+        return new TableSession(client, table.Id, table.TableNumber);
+    }
+
+    /// <summary>A scanned table session: the client, and which table it is pinned to.</summary>
+    public record TableSession(HttpClient Client, Guid TableId, int TableNumber);
 
     /// <summary>
     /// Runs a query against the same database the API is using.

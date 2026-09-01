@@ -11,6 +11,7 @@ import {
   RealtimeService,
   TillApiService,
   UserRole,
+  daysLabel,
   userRoleLabels,
 } from 'shared';
 
@@ -83,8 +84,8 @@ interface NavItem {
       @if (status.isExpiringSoon) {
         <div class="shell__banner dr-no-print" role="status">
           <mat-icon>schedule</mat-icon>
-          Licenca ističe za {{ status.daysRemaining }}
-          {{ status.daysRemaining === 1 ? 'dan' : 'dana' }}. Obratite se administratoru platforme.
+          Licenca ističe za {{ status.daysRemaining }} {{ daysLabel(status.daysRemaining) }}.
+          Obratite se administratoru platforme.
         </div>
       }
     }
@@ -157,9 +158,11 @@ export class Shell {
   private readonly api = inject(TillApiService);
 
   protected readonly license = signal<LicenseStatusDto | null>(null);
+  protected readonly daysLabel = daysLabel;
 
   private readonly nav: NavItem[] = [
     { path: '/sala', label: 'Sala', icon: 'table_restaurant', roles: [UserRole.Waiter, UserRole.Manager, UserRole.Owner] },
+    { path: '/racuni', label: 'Računi', icon: 'receipt_long', roles: [UserRole.Waiter, UserRole.Manager, UserRole.Owner] },
     { path: '/rezervacije', label: 'Rezervacije', icon: 'event_available', roles: [UserRole.Waiter, UserRole.Manager, UserRole.Owner] },
     { path: '/smene', label: 'Smene', icon: 'event_note', roles: [UserRole.Manager, UserRole.Owner] },
     { path: '/magacin', label: 'Magacin', icon: 'inventory_2', roles: [UserRole.Manager, UserRole.Owner] },

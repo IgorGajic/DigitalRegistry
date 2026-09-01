@@ -1,5 +1,6 @@
 """Second half: orders, voids, reservations, shifts, inventory, reports, QR."""
 import datetime
+import api
 from api import call, utc, today, TILL
 
 
@@ -76,6 +77,18 @@ def run(state):
          body={"reason": "Ponovljeni pokusaj storniranja istog racuna"},
          expect=409, label="dvostruki storno")
 
+    print("\n--- POSLEDNJI RACUNI ---")
+    call("GET", f"{TILL}/api/orders", waiter, expect=200, label="lista racuna (dan)")
+    call("GET", f"{TILL}/api/orders", manager, expect=200, label="lista racuna (menadzer)")
+    call("GET", f"{TILL}/api/orders?status=4", owner, expect=200, label="lista placenih")
+    call("GET", f"{TILL}/api/orders?tableId={table['id']}", waiter, expect=200,
+         label="lista po stolu")
+    call("GET", f"{TILL}/api/orders?from={utc()}&to={utc(-1)}", waiter, expect=400,
+         label="lista obrnut period")
+    call("GET", f"{TILL}/api/orders?take=0", waiter, expect=400, label="lista take=0")
+    call("GET", f"{TILL}/api/orders/{oid}/receipt", manager, expect=200,
+         label="menadzer cita otisak")
+
     s, order2 = call("POST", f"{TILL}/api/orders", waiter,
                      body={"tableId": table["id"], "items": [{"menuItemId": gt["id"], "quantity": 2}]},
                      expect=201, label="drugi racun")
@@ -101,6 +114,32 @@ def run(state):
         call("POST", f"{TILL}/api/reservations/{rid}/cancel", guest, expect=[200, 204, 409],
              label="otkazivanje rezervacije")
 
+    s, res2 = call("POST", f"{TILL}/api/reservations", waiter,
+                   body={"tableId": table["id"], "startTime": at(4, 18), "endTime": at(4, 20),
+                         "partySize": 2, "contactName": f"Marko {api.RUN}",
+                         "contactPhone": "060111222"},
+                   expect=201, label="konobar prima rezervaciju za gosta")
+
+    if s == 201:
+        s, sheet = call("GET", f"{TILL}/api/reservations/schedule?date={today(4)}", waiter,
+                        expect=200, label="raspored posle unosa")
+        row = next((r for r in (sheet or []) if r["id"] == res2["id"]), None)
+        if row and row["guestName"] != f"Marko {api.RUN}":
+            print(f"    PAD  rezervacija se vodi na '{row['guestName']}', a ne na gosta")
+            state.setdefault("leaks", []).append("reservation-name")
+        call("POST", f"{TILL}/api/reservations/{res2['id']}/cancel", manager, expect=[200, 204],
+             label="otkazivanje unete rezervacije")
+
+    call("POST", f"{TILL}/api/reservations", waiter,
+         body={"tableId": table["id"], "startTime": at(5, 18), "endTime": at(5, 20),
+               "partySize": 2},
+         expect=400, label="konobar bez imena gosta")
+
+    call("POST", f"{TILL}/api/reservations", guest,
+         body={"tableId": table["id"], "startTime": at(6, 18), "endTime": at(6, 20),
+               "partySize": 2, "contactName": "Neko Drugi"},
+         expect=403, label="gost rezervise na tudje ime")
+
     call("POST", f"{TILL}/api/reservations", guest,
          body={"tableId": table["id"], "startTime": at(2, 18), "endTime": at(2, 20),
                "partySize": 999},
@@ -116,11 +155,11 @@ def run(state):
     t2 = next((t for t in (tpl or []) if t["name"] == "II smena"), None)
 
     call("POST", f"{TILL}/api/shifts/templates", manager,
-         body={"name": "Nocna", "startTime": "22:00:00", "endTime": "06:00:00"},
+         body={"name": f"Nocna {api.RUN}", "startTime": "22:00:00", "endTime": "06:00:00"},
          expect=200, label="nov sablon (preko ponoci)")
 
     call("POST", f"{TILL}/api/shifts/templates", manager,
-         body={"name": "Losa", "startTime": "10:00:00", "endTime": "10:00:00"},
+         body={"name": f"Losa {api.RUN}", "startTime": "10:00:00", "endTime": "10:00:00"},
          expect=400, label="sablon isto vreme")
 
     waiters = state.get("waiters", [])
@@ -206,6 +245,8 @@ def run(state):
             call("POST", f"{TILL}/api/orders/qr", qr,
                  body={"items": [{"menuItemId": espresso["id"], "quantity": 1}]},
                  expect=201, label="gost narucuje preko QR")
+            call("GET", f"{TILL}/api/orders/mine", qr, expect=200, label="gost vidi svoj sto")
+            call("GET", f"{TILL}/api/orders", qr, expect=403, label="QR sesija trazi sve racune")
             call("GET", f"{TILL}/api/reports/turnover?from={today()}&to={today()}", qr,
                  expect=403, label="QR sesija trazi izvestaj")
 

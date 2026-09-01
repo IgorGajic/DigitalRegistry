@@ -168,7 +168,10 @@ erDiagram
         guid Id PK
         guid RestaurantId
         guid TableId FK
-        guid GuestId FK
+        guid GuestId FK "null za rezervaciju primljenu telefonom"
+        string ContactName "ime koje je recepcija zapisala"
+        string ContactPhone
+        guid TakenByUserId FK "ko je primio poziv"
         datetime StartTime
         datetime EndTime
         int PartySize
@@ -257,6 +260,7 @@ Ograničenja nisu ukras — ona hvataju ono što bi promaklo grešci u kodu:
 | `CK_Ingredient_Stock_NonNegative` | negativna zaliha |
 | `CK_License_Period` | licenca koja ističe pre nego što počne |
 | `CK_Reservation_Period`, `CK_Shift_Period` | period koji se završava pre početka |
+| `CK_Reservation_Booker` | rezervacija bez ijednog imena — mora imati nalog gosta ili zapisano ime |
 | `CK_ShiftTemplate_Period` | šablon smene bez trajanja (`StartTime = EndTime`) |
 | `CK_Table_Rotation_Range` | rotacija stola van 0–359° |
 

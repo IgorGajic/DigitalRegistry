@@ -60,9 +60,13 @@
             ],
             "stylePreprocessorOptions": {
               "includePaths": [
-                "node_modules"
+                "node_modules",
+                "projects/shared/styles"
               ]
-            }
+            },
+            "allowedCommonJsDependencies": [
+              "qrcode"
+            ]
           },
           "configurations": {
             "production": {
@@ -142,7 +146,8 @@
             ],
             "stylePreprocessorOptions": {
               "includePaths": [
-                "node_modules"
+                "node_modules",
+                "projects/shared/styles"
               ]
             }
           },

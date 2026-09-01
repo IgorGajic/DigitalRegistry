@@ -1,8 +1,14 @@
 """Third part: the master API, and cross-tenant isolation between two live venues."""
+import api
 from api import call, utc, today, TILL, MASTER
 
 
 def run(state):
+    # The second venue is created fresh each run: a slug is unique for the whole platform, so a
+    # fixed one turns every later run into a 409 that aborts this file before it starts.
+    slug = f"kafana-test-{api.RUN}"
+    owner_email = f"vlasnik{api.RUN}@kafanatest.rs"
+
     print("\n--- MASTER API ---")
     s, admin = call("POST", f"{MASTER}/api/platform/auth/login",
                     body={"email": "admin@digitalregistry.local", "password": "Admin#Pass123"},
@@ -25,7 +31,7 @@ def run(state):
     call("GET", f"{MASTER}/api/platform/licenses", a, expect=200, label="lista licenci")
 
     s, r2 = call("POST", f"{MASTER}/api/platform/restaurants", a,
-                 body={"name": "Kafana Test", "slug": "kafana-test", "address": "Neka 1",
+                 body={"name": f"Kafana Test {api.RUN}", "slug": slug, "address": "Neka 1",
                        "contactEmail": "info@kafanatest.rs", "currencyCode": "RSD"},
                  expect=201, label="nov restoran")
     if s != 201:
@@ -33,7 +39,7 @@ def run(state):
     rid = r2["id"]
 
     call("POST", f"{MASTER}/api/platform/restaurants", a,
-         body={"name": "Opet", "slug": "kafana-test"}, expect=409, label="restoran duplo ime")
+         body={"name": "Opet", "slug": slug}, expect=409, label="restoran duplo ime")
 
     call("POST", f"{MASTER}/api/platform/restaurants", a,
          body={"name": "Los slug", "slug": "Ima Razmak"}, expect=400, label="restoran los slug")
@@ -41,22 +47,24 @@ def run(state):
     call("GET", f"{MASTER}/api/platform/restaurants/{rid}", a, expect=200, label="restoran po id")
 
     call("PUT", f"{MASTER}/api/platform/restaurants/{rid}", a,
-         body={"id": rid, "name": "Kafana Test 2", "address": "Neka 2", "currencyCode": "RSD"},
+         body={"id": rid, "name": f"Kafana Test {api.RUN} 2", "address": "Neka 2",
+               "currencyCode": "RSD"},
          expect=200, label="izmena restorana")
 
     s, own = call("POST", f"{MASTER}/api/platform/restaurants/{rid}/owner", a,
-                  body={"restaurantId": rid, "email": "vlasnik@kafanatest.rs",
+                  body={"restaurantId": rid, "email": owner_email,
                         "password": "Vlasnik#123", "firstName": "Pera", "lastName": "Peric"},
                   expect=200, label="vlasnicki nalog")
 
     call("POST", f"{MASTER}/api/platform/restaurants/{rid}/owner", a,
-         body={"restaurantId": rid, "email": "drugi@kafanatest.rs", "password": "Vlasnik#123",
+         body={"restaurantId": rid, "email": f"drugi{api.RUN}@kafanatest.rs",
+               "password": "Vlasnik#123",
                "firstName": "Drugi", "lastName": "Vlasnik"},
          expect=409, label="drugi vlasnik istog restorana")
 
     # The new venue has no licence yet, so the till must refuse it with 402.
     s, tok = call("POST", f"{TILL}/api/auth/login",
-                  body={"restaurantSlug": "kafana-test", "email": "vlasnik@kafanatest.rs",
+                  body={"restaurantSlug": slug, "email": owner_email,
                         "password": "Vlasnik#123"},
                   expect=200, label="prijava vlasnika novog restorana")
     new_owner = tok["accessToken"] if s == 200 else None
@@ -127,8 +135,7 @@ def run(state):
     call("POST", f"{MASTER}/api/platform/restaurants/{rid}/suspend", a, expect=200,
          label="gasenje restorana")
     call("POST", f"{TILL}/api/auth/login",
-         body={"restaurantSlug": "kafana-test", "email": "vlasnik@kafanatest.rs",
-               "password": "Vlasnik#123"},
+         body={"restaurantSlug": slug, "email": owner_email, "password": "Vlasnik#123"},
          expect=401, label="prijava u ugasen restoran")
     call("POST", f"{MASTER}/api/platform/restaurants/{rid}/activate", a, expect=200,
          label="ponovno paljenje restorana")

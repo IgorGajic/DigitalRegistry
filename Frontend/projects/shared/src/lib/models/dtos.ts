@@ -99,6 +99,22 @@ export interface TableDto {
   isActive: boolean;
 }
 
+/**
+ * One table's entry on the printable QR sheet.
+ *
+ * Carries the token, which is a credential, so it comes only from the management endpoint — never
+ * from the floor plan the whole floor has open all shift.
+ */
+export interface TableQrCodeSheetEntryDto {
+  tableId: string;
+  tableNumber: number;
+  capacity: number;
+  roomId: string | null;
+  roomName: string | null;
+  qrCodeToken: string;
+  isActive: boolean;
+}
+
 // ------------------------------------------------------------------------------------------- menu
 
 export interface MenuItemDto {
@@ -146,10 +162,35 @@ export interface OrderDto {
   tableId: string;
   tableNumber: number;
   waiterId: string | null;
+  /** True for a round the table sent through its QR code rather than one a waiter rang in. */
+  placedByGuest: boolean;
   status: OrderStatus;
   total: number;
   createdAt: string;
   items: OrderItemDto[];
+}
+
+/**
+ * A tab as it appears on the recent-bills screen.
+ *
+ * Without the lines: the list is for finding a bill again, and the lines arrive with the receipt
+ * once one has been chosen.
+ */
+export interface OrderSummaryDto {
+  id: string;
+  /** The same short form the receipt prints, so a guest can quote one over the telephone. */
+  number: string;
+  tableId: string;
+  tableNumber: number;
+  status: OrderStatus;
+  placedByGuest: boolean;
+  servedBy: string | null;
+  createdAt: string;
+  paidAtUtc: string | null;
+  paymentMethod: PaymentMethod | null;
+  itemCount: number;
+  total: number;
+  isReversed: boolean;
 }
 
 export interface TransactionDto {
@@ -198,6 +239,38 @@ export interface ReceiptDto {
   isReversed: boolean;
   total: number;
   lines: ReceiptLineDto[];
+}
+
+/** One line of what a table has had, priced as it was ordered. */
+export interface TableTabLineDto {
+  menuItemName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  notes: string | null;
+}
+
+/** One round: everything sent to the bar at the same moment. */
+export interface TableTabRoundDto {
+  orderId: string;
+  createdAtUtc: string;
+  status: OrderStatus;
+  placedByGuest: boolean;
+  lines: TableTabLineDto[];
+}
+
+/**
+ * What a table has had so far, across every round still running.
+ *
+ * Not a bill — nothing here can be settled from a phone. It exists so a guest ordering by QR can see
+ * what they have already asked for, which no single round's confirmation can tell them.
+ */
+export interface TableTabDto {
+  tableId: string;
+  tableNumber: number;
+  itemCount: number;
+  total: number;
+  rounds: TableTabRoundDto[];
 }
 
 // -------------------------------------------------------------------------------------- inventory
@@ -346,8 +419,13 @@ export interface ReservationDto {
  * staff-only for exactly that reason.
  */
 export interface ReservationScheduleEntryDto extends ReservationDto {
-  guestId: string;
+  /** Null for a booking the desk took by telephone, which is most of them. */
+  guestId: string | null;
+  /** The account holder's name, or the one the desk wrote down. The sheet does not distinguish. */
   guestName: string;
+  contactPhone: string | null;
+  /** The member of staff who took the booking, or null when the guest made it themselves. */
+  takenBy: string | null;
 }
 
 // ------------------------------------------------------------------------------------------ staff

@@ -86,6 +86,7 @@ logu.
 | :--- | :--- | :--- |
 | Sala (glavni ekran) | `/sala` | Konobar+ |
 | Račun stola | `/sala/:tableId` | Konobar+ |
+| Poslednji računi | `/racuni` | Konobar+ (storno plaćenog: Menadžer+) |
 | Rezervacije | `/rezervacije` | Konobar+ (otkazivanje: Menadžer+) |
 | Smene | `/smene` | Menadžer+ |
 | Magacin | `/magacin` | Menadžer+ |
@@ -131,10 +132,18 @@ baza).
 ```powershell
 dotnet build Backend/DigitalRegistry.slnx
 dotnet test  Backend/DigitalRegistry.slnx
+
+cd Frontend
+npx ng test shared --watch=false
+npx ng test pos --watch=false
 ```
 
 `dotnet test` ne traži ništa instalirano: unit testovi rade nad domenom i handlerima, a integracioni
 dižu ceo host u procesu nad in-memory bazom sa demo podacima.
+
+Frontend testovi (vitest) pokrivaju ono što se ne vidi na ekranu: interceptore (402 nasuprot 401
+nasuprot sesije stola), sesiju stola iz QR koda, pravila boja na sali, i validaciju unosa
+rezervacije.
 
 Uz to, dve skripte rade protiv **pokrenutih** API-ja i žive baze:
 
@@ -143,22 +152,24 @@ python Backend/tools/api-walkthrough/main.py      # svaka ruta oba API-ja, sa o�
 python Backend/tools/api-walkthrough/dbwalk.py    # svaki endpoint koji piše + provera reda u bazi
 ```
 
-`main.py` traži svežu bazu (pravi restoran sa fiksnom šifrom, pa drugo pokretanje puca na 409);
-`dbwalk.py` je ponovljiv. Detalji su u `Backend/tools/api-walkthrough/README.md`.
+Obe su ponovljive — sve što prave nosi sufiks jedinstven za pokretanje — pa se mogu vrteti nad
+istom bazom više puta. Detalji su u `Backend/tools/api-walkthrough/README.md`.
 
 Nova migracija:
 
 ```powershell
-dotnet ef migrations add <Naziv> --project Backend/src/DigitalRegistry.Infrastructure --startup-project Backend/src/DigitalRegistry.Api
+dotnet ef migrations add <Naziv> --project Backend/src/DigitalRegistry.Infrastructure --startup-project Backend/src/DigitalRegistry.Infrastructure
+dotnet ef database update           --project Backend/src/DigitalRegistry.Infrastructure --startup-project Backend/src/DigitalRegistry.Infrastructure
 ```
+
+Infrastructure je i startni projekat: `DesignTimeDbContextFactory` pravi kontekst bez dizanja
+veb-hosta, a API projekti ne referenciraju `Microsoft.EntityFrameworkCore.Design`.
 
 ---
 
 ## Ograničenja
 
 - Račun je simulacija: nijedan fiskalni uređaj ga nije video i tako je i označen na otisku.
-- Storno plaćenog računa se nudi na otisku odmah posle naplate; za stariji račun nema ekrana jer API
-  nema listanje računa.
 - Poruke grešaka sa backenda su na engleskom, dok je interfejs na srpskom.
 - Sve je podešeno za lokalni razvoj — ključ za potpisivanje tokena, CORS i demo podaci nisu za
   produkciju.

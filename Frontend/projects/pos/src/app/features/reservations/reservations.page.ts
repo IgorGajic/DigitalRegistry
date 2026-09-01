@@ -9,6 +9,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
@@ -19,6 +20,7 @@ import {
   ConfirmDialog,
   ConfirmDialogData,
   FloorPlanTableDto,
+  LoadingState,
   RealtimeService,
   ReservationScheduleEntryDto,
   ReservationStatus,
@@ -30,17 +32,24 @@ import {
   toDateOnly,
 } from 'shared';
 
+import {
+  ReservationDialog,
+  ReservationDialogData,
+  ReservationDialogResult,
+} from './reservation.dialog';
+
 /**
  * The day's bookings, as the front of house works them.
  *
- * Two jobs: knowing what is coming, and marking a party in when it arrives. Checking in is what
- * turns a booking into a seated table — it raises the floor alert the rest of the staff see — so it
- * is the one action here a waiter may take. Cancelling belongs to a manager, matching the API, which
- * remains the authority; the button is hidden rather than left to answer 403.
+ * Three jobs: taking a booking, knowing what is coming, and marking a party in when it arrives.
+ * Checking in is what turns a booking into a seated table — it raises the floor alert the rest of
+ * the staff see — so it, and taking a booking, are what a waiter may do here. Cancelling belongs to
+ * a manager, matching the API, which remains the authority; the button is hidden rather than left to
+ * answer 403.
  *
- * Taking a booking is not offered. The API books for the caller, so a booking entered by a waiter
- * would be filed under the waiter's own name; a desk that books on a guest's behalf needs the API to
- * accept a guest first.
+ * A booking taken here is filed under the guest's name, not the name of whoever answered the
+ * telephone. That is why the form insists on a name: the API books for the caller unless it is given
+ * one, and the desk's own name on somebody else's table is worse than no booking at all.
  */
 @Component({
   selector: 'pos-reservations',
@@ -55,11 +64,16 @@ import {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatProgressBarModule,
     MatSelectModule,
     MatTableModule,
     MatTooltipModule,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <header class="res__header">
         <h1>Rezervacije</h1>
@@ -81,6 +95,11 @@ import {
         </button>
 
         <button mat-button (click)="today()">Danas</button>
+
+        <button mat-flat-button (click)="book()">
+          <mat-icon>add</mat-icon>
+          Nova rezervacija
+        </button>
 
         <mat-form-field appearance="outline" class="res__filter">
           <mat-label>Sto</mat-label>
@@ -135,7 +154,16 @@ import {
 
           <ng-container matColumnDef="guest">
             <th mat-header-cell *matHeaderCellDef>Gost</th>
-            <td mat-cell *matCellDef="let row">{{ row.guestName }}</td>
+            <td mat-cell *matCellDef="let row">
+              <span
+                [matTooltip]="row.takenBy ? 'Primio: ' + row.takenBy : 'Gost rezervisao sam'"
+              >
+                {{ row.guestName }}
+              </span>
+              @if (row.contactPhone) {
+                <a class="res__phone" [href]="'tel:' + row.contactPhone">{{ row.contactPhone }}</a>
+              }
+            </td>
           </ng-container>
 
           <ng-container matColumnDef="party">
@@ -179,13 +207,15 @@ import {
           ></tr>
         </table>
 
-        @if (entries().length === 0) {
+        @if (entries().length === 0 && !loading.active()) {
           <p class="dr-empty">Za izabrani dan nema rezervacija.</p>
         }
       </mat-card>
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     .res__header {
       display: flex;
       align-items: center;
@@ -227,11 +257,19 @@ import {
 
     .res__summary strong {
       font-size: 1.6rem;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
     table {
       width: 100%;
+    }
+
+    /* The number is there to be dialled when a party is late, so it is a link, not decoration. */
+    .res__phone {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--mat-sys-on-surface-variant);
     }
 
     .res__actions {
@@ -247,6 +285,28 @@ import {
     .res__row--now {
       background: var(--dr-reserved-bg);
     }
+
+    @include rt.labels((
+      time: 'Vreme',
+      table: 'Sto',
+      guest: 'Gost',
+      party: 'Osoba',
+      status: 'Status',
+    ));
+
+    @media (max-width: 900px) {
+      .res__date,
+      .res__filter {
+        width: 100%;
+        margin-bottom: 0;
+      }
+
+      /* The table cell holds a button, which should not be pushed to the far edge on a card. */
+      .cdk-column-table {
+        justify-content: flex-start;
+        gap: 8px;
+      }
+    }
   `,
 })
 export class ReservationsPage {
@@ -257,6 +317,7 @@ export class ReservationsPage {
   private readonly snackBar = inject(MatSnackBar);
   private readonly dialog = inject(MatDialog);
 
+  protected readonly loading = new LoadingState();
   protected readonly columns = ['time', 'table', 'guest', 'party', 'status', 'actions'];
 
   protected readonly entries = signal<ReservationScheduleEntryDto[]>([]);
@@ -295,8 +356,8 @@ export class ReservationsPage {
   }
 
   protected load(): void {
-    this.api
-      .reservationSchedule(toDateOnly(this.date), this.tableId ?? undefined)
+    this.loading
+      .track(this.api.reservationSchedule(toDateOnly(this.date), this.tableId ?? undefined))
       .subscribe((rows) => this.entries.set(rows));
   }
 
@@ -378,6 +439,42 @@ export class ReservationsPage {
 
         this.api.cancelReservation(entry.id).subscribe(() => {
           this.snackBar.open('Rezervacija je otkazana.', 'U redu', { duration: 4000 });
+          this.load();
+        });
+      });
+  }
+
+  /**
+   * Takes a booking for a named guest.
+   *
+   * The sheet reloads rather than being patched: the API decides the status, and a booking made for
+   * another day should not silently appear on the day being looked at.
+   */
+  protected book(): void {
+    const data: ReservationDialogData = {
+      tables: this.tables(),
+      date: this.date,
+      tableId: this.tableId,
+    };
+
+    this.dialog
+      .open(ReservationDialog, { data })
+      .afterClosed()
+      .subscribe((result: ReservationDialogResult | undefined) => {
+        if (!result) {
+          return;
+        }
+
+        this.api.createReservation(result).subscribe((created) => {
+          this.snackBar.open(
+            `Rezervisano: ${result.contactName}, sto ${created.tableNumber}, `
+              + `${this.time(created.startTime)}.`,
+            'U redu',
+            { duration: 5000 },
+          );
+
+          // Jump to the day the booking landed on, so it is visible straight away.
+          this.date = new Date(created.startTime);
           this.load();
         });
       });

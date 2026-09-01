@@ -12,7 +12,9 @@ import {
   MenuItemDetailDto,
   MenuItemDto,
   OrderDto,
+  OrderSummaryDto,
   ReceiptDto,
+  ReservationDto,
   ReservationScheduleEntryDto,
   RoomDto,
   ShiftAssignmentDto,
@@ -23,6 +25,7 @@ import {
   StockMovementDto,
   TableDto,
   TableLayoutRequest,
+  TableQrCodeSheetEntryDto,
   TopSellingItemDto,
   TransactionDto,
   TurnoverReportDto,
@@ -30,7 +33,7 @@ import {
   VoidResultDto,
   WeeklyScheduleDto,
 } from '../models/dtos';
-import { PaymentMethod, UserRole, WeekDays } from '../models/enums';
+import { OrderStatus, PaymentMethod, UserRole, WeekDays } from '../models/enums';
 
 /** How a line is changed on an open tab. Only ever adds; taking off is a void. */
 export enum OrderItemChange {
@@ -114,6 +117,21 @@ export class TillApiService {
     return this.http.delete<void>(`${this.base}/api/tables/${id}`);
   }
 
+  /**
+   * Every table's QR token, for printing the codes that go on the tables.
+   *
+   * Manager and owner only, because the token is a credential rather than a label.
+   */
+  tableQrCodes(roomId?: string, includeInactive = false): Observable<TableQrCodeSheetEntryDto[]> {
+    let params = new HttpParams().set('includeInactive', includeInactive);
+
+    if (roomId) {
+      params = params.set('roomId', roomId);
+    }
+
+    return this.http.get<TableQrCodeSheetEntryDto[]>(`${this.base}/api/tables/qr-codes`, { params });
+  }
+
   rotateQrCode(id: string): Observable<{ tableId: string; tableNumber: number; qrCodeToken: string }> {
     return this.http.post<{ tableId: string; tableNumber: number; qrCodeToken: string }>(
       `${this.base}/api/tables/${id}/qr-code`,
@@ -165,6 +183,44 @@ export class TillApiService {
 
   order(id: string): Observable<OrderDto> {
     return this.http.get<OrderDto>(`${this.base}/api/orders/${id}`);
+  }
+
+  /**
+   * The bills opened in a period, newest first.
+   *
+   * How a settled bill is found again once its receipt has been closed — to reprint it, or to
+   * reverse it. Omit the window and the API answers for the current day.
+   */
+  orders(options: {
+    fromUtc?: string;
+    toUtc?: string;
+    status?: OrderStatus | null;
+    tableId?: string | null;
+    take?: number;
+  } = {}): Observable<OrderSummaryDto[]> {
+    let params = new HttpParams();
+
+    if (options.fromUtc) {
+      params = params.set('from', options.fromUtc);
+    }
+
+    if (options.toUtc) {
+      params = params.set('to', options.toUtc);
+    }
+
+    if (options.status) {
+      params = params.set('status', options.status);
+    }
+
+    if (options.tableId) {
+      params = params.set('tableId', options.tableId);
+    }
+
+    if (options.take) {
+      params = params.set('take', options.take);
+    }
+
+    return this.http.get<OrderSummaryDto[]>(`${this.base}/api/orders`, { params });
   }
 
   openOrder(
@@ -418,6 +474,23 @@ export class TillApiService {
     return this.http.get<ReservationScheduleEntryDto[]>(`${this.base}/api/reservations/schedule`, {
       params,
     });
+  }
+
+  /**
+   * Books a table for a named guest.
+   *
+   * Staff must give a name: without one the API would have to file the booking under whoever is
+   * signed in, which is the thing this endpoint exists to avoid.
+   */
+  createReservation(body: {
+    tableId: string;
+    startTime: string;
+    endTime: string;
+    partySize: number;
+    contactName: string;
+    contactPhone?: string | null;
+  }): Observable<ReservationDto> {
+    return this.http.post<ReservationDto>(`${this.base}/api/reservations`, body);
   }
 
   checkInReservation(id: string): Observable<void> {

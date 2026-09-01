@@ -1,20 +1,45 @@
 @use '@angular/material' as mat;
+@use '../../shared/styles/foundation' as dr;
+@use '../../shared/styles/responsive-table' as rt;
+@use '../../shared/styles/till_theme-colors' as till;
 
-// Angular Material 21 theming: one call generates the whole token set from a palette. The `ng add`
-// schematic that would have written this fails on this version, so it is written by hand.
+// The till's theme.
+//
+// Petrol ink rather than a stock palette: it is the colour of enamel trade signage and of till
+// ribbon, and — the part that actually matters here — it sits far from all four table-state hues,
+// so the chrome can never be mistaken for a table that needs attention.
+//
+// Density stays at 0. This screen is worked standing, with a finger, and every control has to keep
+// its full target. The platform application is denser, because it is worked sitting with a mouse.
 html {
   color-scheme: light;
 
   @include mat.theme((
-    color: mat.$azure-palette,
-    typography: Roboto,
+    color: (
+      primary: till.$primary-palette,
+      tertiary: till.$tertiary-palette,
+    ),
+    typography: (
+      brand-family: dr.$dr-brand,
+      plain-family: dr.$dr-plain,
+      bold-weight: 700,
+      medium-weight: 500,
+      regular-weight: 400,
+    ),
     density: 0,
   ));
 }
 
+@include dr.foundation;
+
+// Every Material table on this host stacks into cards below the breakpoint. The column
+// labels live with the screen that owns the table; only the stacking is shared.
+@include rt.structure;
+
 :root {
   // The till runs all day on one screen, so the palette is deliberately quiet and the table states
-  // are the only saturated colour on it.
+  // are the only saturated colour on it. Unchanged: these four are the working vocabulary of the
+  // floor, and a waiter reads them from across the room.
   --dr-free: #2e7d32;
   --dr-free-bg: #e8f5e9;
   --dr-occupied: #c62828;
@@ -23,44 +48,10 @@ html {
   --dr-reserved-bg: #fff3e0;
   --dr-out-of-service: #616161;
   --dr-out-of-service-bg: #eeeeee;
-
-  --dr-gap: 16px;
-  --dr-radius: 10px;
 }
 
-html,
-body {
-  height: 100%;
-  margin: 0;
-  font-family: Roboto, 'Helvetica Neue', sans-serif;
-  background: var(--mat-sys-surface-container-low);
-  color: var(--mat-sys-on-surface);
-}
-
-// Staff work standing at a screen, often a touchscreen, so nothing is allowed to be small.
 .dr-page {
-  padding: var(--dr-gap);
   max-width: 1600px;
-  margin: 0 auto;
-}
-
-.dr-toolbar-spacer {
-  flex: 1 1 auto;
-}
-
-.dr-muted {
-  color: var(--mat-sys-on-surface-variant);
-}
-
-.dr-empty {
-  padding: 48px 16px;
-  text-align: center;
-  color: var(--mat-sys-on-surface-variant);
-}
-
-.dr-numeric {
-  font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
 @media print {
@@ -69,15 +60,16 @@ body {
     display: none !important;
   }
 
-  // The bill is shown in a dialog, which the CDK renders in a fixed, scrollable overlay appended to
-  // the body — printed as-is that yields one clipped page over a screenshot of the till. So while a
-  // receipt is on screen (`:has(#dr-receipt)`), everything except the overlay is hidden and the
-  // overlay is unpinned back into normal flow. Scoped to the receipt so other dialogs are unaffected.
-  body:has(#dr-receipt) > *:not(.cdk-overlay-container) {
+  // Printable dialogs — the bill, and the sheet of table QR codes — are rendered by the CDK in a
+  // fixed, scrollable overlay appended to the body; printed as-is that yields one clipped page over
+  // a screenshot of the till. So while one is on screen (`:has(.dr-printable)`), everything except
+  // the overlay is hidden and the overlay is unpinned back into normal flow. Scoped to that marker
+  // class so other dialogs are unaffected.
+  body:has(.dr-printable) > *:not(.cdk-overlay-container) {
     display: none !important;
   }
 
-  body:has(#dr-receipt) {
+  body:has(.dr-printable) {
     .cdk-overlay-backdrop {
       display: none !important;
     }

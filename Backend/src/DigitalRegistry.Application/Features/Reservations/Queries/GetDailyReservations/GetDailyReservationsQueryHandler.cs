@@ -41,7 +41,15 @@ public class GetDailyReservationsQueryHandler(
                 reservation.PartySize,
                 reservation.Status,
                 reservation.GuestId,
-                reservation.Guest!.FirstName + " " + reservation.Guest.LastName))
+                // A booking has exactly one of the two, so this is a choice rather than a fallback:
+                // an account holder's name, or the name the desk wrote down for a telephone booking.
+                reservation.Guest == null
+                    ? reservation.ContactName!
+                    : reservation.Guest.FirstName + " " + reservation.Guest.LastName,
+                reservation.ContactPhone,
+                reservation.TakenBy == null
+                    ? null
+                    : reservation.TakenBy.FirstName + " " + reservation.TakenBy.LastName))
             .ToListAsync(cancellationToken);
 
         return Result<IReadOnlyList<ReservationScheduleEntryDto>>.Success(schedule);

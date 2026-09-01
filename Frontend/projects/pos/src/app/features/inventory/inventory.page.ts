@@ -1,12 +1,10 @@
 import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -14,6 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import {
   InventoryValuationDto,
   InventoryValuationLineDto,
+  LoadingState,
   StockMovementDto,
   TillApiService,
   addDays,
@@ -22,6 +21,9 @@ import {
   stockMovementLabels,
   unitLabels,
 } from 'shared';
+
+import { StockCountDialog, StockCountDialogResult } from './stock-count.dialog';
+import { StockEntryDialog, StockEntryDialogResult } from './stock-entry.dialog';
 
 /**
  * The store: what is on the shelf, what it cost, and what moved.
@@ -36,18 +38,20 @@ import {
     CurrencyPipe,
     DatePipe,
     DecimalPipe,
-    FormsModule,
     MatButtonModule,
     MatCardModule,
-    MatFormFieldModule,
+    MatDialogModule,
     MatIconModule,
-    MatInputModule,
-    MatSelectModule,
+    MatProgressBarModule,
     MatTableModule,
     MatTabsModule,
     MatTooltipModule,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <h1>Magacin</h1>
 
@@ -133,6 +137,13 @@ import {
               <tr mat-header-row *matHeaderRowDef="stockColumns"></tr>
               <tr mat-row *matRowDef="let row; columns: stockColumns"></tr>
             </table>
+
+            @if (lines().length === 0 && !loading.active()) {
+              <p class="dr-empty">
+                Nema nijednog sastojka. Dok ih nema, prodaja ne razdužuje magacin i marža na
+                jelovniku ostaje nepoznata.
+              </p>
+            }
           </mat-card>
         </mat-tab>
 
@@ -185,97 +196,18 @@ import {
               <tr mat-row *matRowDef="let row; columns: movementColumns"></tr>
             </table>
 
-            @if (movements().length === 0) {
+            @if (movements().length === 0 && !loading.active()) {
               <p class="dr-empty">Nema kretanja u poslednjih 30 dana.</p>
             }
           </mat-card>
         </mat-tab>
       </mat-tab-group>
 
-      @if (entryFor(); as line) {
-        <mat-card class="inv__form">
-          <mat-card-header>
-            <mat-card-title>Ulaz robe: {{ line.name }}</mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="inv__fields">
-              <mat-form-field appearance="outline">
-                <mat-label>Količina</mat-label>
-                <input matInput type="number" min="0" step="1" [(ngModel)]="quantity" />
-                <span matTextSuffix>{{ unit(line) }}</span>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Nabavna cena po jedinici</mat-label>
-                <input matInput type="number" min="0" step="0.01" [(ngModel)]="unitPrice" />
-                <span matTextSuffix>RSD</span>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Dobavljač</mat-label>
-                <input matInput [(ngModel)]="supplier" />
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Broj otpremnice</mat-label>
-                <input matInput [(ngModel)]="reference" />
-              </mat-form-field>
-            </div>
-
-            <p class="dr-muted">
-              Ukupno: {{ quantity * unitPrice | currency: 'RSD' : 'symbol-narrow' : '1.0-2' }}.
-              Nabavna cena ulazi u klizeći prosek, iz kojeg se računa marža na jelovniku.
-            </p>
-
-            <div class="inv__form-actions">
-              <button mat-flat-button [disabled]="quantity <= 0" (click)="saveEntry(line)">
-                Zaduži magacin
-              </button>
-              <button mat-button (click)="entryFor.set(null)">Odustani</button>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      }
-
-      @if (countFor(); as line) {
-        <mat-card class="inv__form">
-          <mat-card-header>
-            <mat-card-title>Popis: {{ line.name }}</mat-card-title>
-            <mat-card-subtitle>
-              Knjigovodstveno stanje: {{ line.stockQuantity | number: '1.0-3' }} {{ unit(line) }}
-            </mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="inv__fields">
-              <mat-form-field appearance="outline">
-                <mat-label>Prebrojano</mat-label>
-                <input matInput type="number" min="0" step="0.1" [(ngModel)]="counted" />
-                <span matTextSuffix>{{ unit(line) }}</span>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="inv__reason">
-                <mat-label>Razlog</mat-label>
-                <input matInput [(ngModel)]="reason" placeholder="npr. lom, kalo, greška u prijemu" />
-              </mat-form-field>
-            </div>
-
-            <p class="dr-muted">
-              Razlika: {{ counted - line.stockQuantity | number: '1.0-3' }} {{ unit(line) }}.
-              Korekcija ostaje zabeležena uz vaše ime.
-            </p>
-
-            <div class="inv__form-actions">
-              <button mat-flat-button [disabled]="reason.trim().length < 3" (click)="saveCount(line)">
-                Sačuvaj popis
-              </button>
-              <button mat-button (click)="countFor.set(null)">Odustani</button>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      }
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     h1 {
       margin: 0 0 16px;
       font-size: 1.5rem;
@@ -297,6 +229,7 @@ import {
 
     .inv__summary strong {
       font-size: 1.4rem;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
@@ -333,47 +266,33 @@ import {
       color: var(--dr-occupied);
     }
 
-    .inv__form {
-      margin-top: 16px;
-    }
-
-    .inv__fields {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 8px;
-    }
-
-    .inv__reason {
-      grid-column: span 2;
-    }
-
-    .inv__form-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
+    @include rt.labels((
+      name: 'Artikal',
+      stock: 'Stanje',
+      price: 'Prosečna nabavna',
+      value: 'Vrednost',
+      consumed: 'Utrošeno',
+      when: 'Kada',
+      ingredient: 'Artikal',
+      type: 'Tip',
+      quantity: 'Količina',
+      balance: 'Stanje posle',
+      note: 'Napomena',
+    ));
   `,
 })
 export class InventoryPage {
   private readonly api = inject(TillApiService);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
 
+  protected readonly loading = new LoadingState();
   protected readonly stockColumns = ['name', 'stock', 'price', 'value', 'consumed', 'actions'];
   protected readonly movementColumns = ['when', 'ingredient', 'type', 'quantity', 'balance', 'note'];
 
   protected readonly valuation = signal<InventoryValuationDto | null>(null);
   protected readonly movements = signal<StockMovementDto[]>([]);
   protected readonly lines = computed(() => this.valuation()?.lines ?? []);
-
-  protected readonly entryFor = signal<InventoryValuationLineDto | null>(null);
-  protected readonly countFor = signal<InventoryValuationLineDto | null>(null);
-
-  protected quantity = 0;
-  protected unitPrice = 0;
-  protected supplier = '';
-  protected reference = '';
-  protected counted = 0;
-  protected reason = '';
 
   constructor() {
     this.load();
@@ -387,54 +306,54 @@ export class InventoryPage {
     return stockMovementLabels[type];
   }
 
+  /**
+   * Books a delivery in.
+   *
+   * A dialog rather than a panel under the table: the panel was rendered after the tab group, so on
+   * a store with more than a handful of ingredients the button was on screen and the form it opened
+   * was not, and pressing it looked like pressing nothing.
+   */
   protected startEntry(line: InventoryValuationLineDto): void {
-    this.countFor.set(null);
-    this.entryFor.set(line);
-    this.quantity = 0;
-    // Pre-filled with what the last deliveries averaged, which is usually close enough to correct.
-    this.unitPrice = line.averagePurchasePrice;
-    this.supplier = '';
-    this.reference = '';
-  }
+    this.dialog
+      .open(StockEntryDialog, { data: { line } })
+      .afterClosed()
+      .subscribe((result: StockEntryDialogResult | undefined) => {
+        if (!result) {
+          return;
+        }
 
-  protected startCount(line: InventoryValuationLineDto): void {
-    this.entryFor.set(null);
-    this.countFor.set(line);
-    this.counted = line.stockQuantity;
-    this.reason = '';
-  }
-
-  protected saveEntry(line: InventoryValuationLineDto): void {
-    this.api
-      .recordStockEntry({
-        ingredientId: line.ingredientId,
-        quantity: this.quantity,
-        purchaseUnitPrice: this.unitPrice,
-        supplier: this.supplier.trim() || null,
-        referenceNumber: this.reference.trim() || null,
-      })
-      .subscribe((entry) => {
-        this.snackBar.open(
-          `Zaduženo. Novo stanje ${entry.stockAfter}, prosečna nabavna ${entry.averagePurchasePriceAfter}.`,
-          'U redu',
-          { duration: 6000 },
-        );
-        this.entryFor.set(null);
-        this.load();
+        this.loading
+          .track(this.api.recordStockEntry({ ingredientId: line.ingredientId, ...result }))
+          .subscribe((entry) => {
+            this.snackBar.open(
+              `Zaduženo. Novo stanje ${entry.stockAfter}, prosečna nabavna `
+                + `${entry.averagePurchasePriceAfter}.`,
+              'U redu',
+              { duration: 6000 },
+            );
+            this.load();
+          });
       });
   }
 
-  protected saveCount(line: InventoryValuationLineDto): void {
-    this.api
-      .adjustStock(line.ingredientId, this.counted, this.reason.trim())
-      .subscribe((result) => {
-        this.snackBar.open(
-          `Popis sačuvan. Razlika ${result.difference}.`,
-          'U redu',
-          { duration: 6000 },
-        );
-        this.countFor.set(null);
-        this.load();
+  /** Files a stocktake. The counted quantity is what is asked for; the difference is derived. */
+  protected startCount(line: InventoryValuationLineDto): void {
+    this.dialog
+      .open(StockCountDialog, { data: { line } })
+      .afterClosed()
+      .subscribe((result: StockCountDialogResult | undefined) => {
+        if (!result) {
+          return;
+        }
+
+        this.loading
+          .track(this.api.adjustStock(line.ingredientId, result.counted, result.reason))
+          .subscribe((outcome) => {
+            this.snackBar.open(`Popis sačuvan. Razlika ${outcome.difference}.`, 'U redu', {
+              duration: 6000,
+            });
+            this.load();
+          });
       });
   }
 
@@ -443,7 +362,12 @@ export class InventoryPage {
     const from = startOfDayUtc(addDays(now, -30));
     const to = endOfDayUtc(now);
 
-    this.api.inventoryValuation(from, to).subscribe((report) => this.valuation.set(report));
-    this.api.stockMovements(from, to).subscribe((rows) => this.movements.set(rows));
+    this.loading
+      .track(this.api.inventoryValuation(from, to))
+      .subscribe((report) => this.valuation.set(report));
+
+    this.loading
+      .track(this.api.stockMovements(from, to))
+      .subscribe((rows) => this.movements.set(rows));
   }
 }

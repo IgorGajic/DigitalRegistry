@@ -8,18 +8,19 @@ in-memory provider.
 
 ## Running it
 
-Start from an empty database, so the demo seed is present and nothing is left over from a previous
-run:
-
 ```powershell
-dotnet ef database drop --force --project src/DigitalRegistry.Infrastructure --startup-project src/DigitalRegistry.Infrastructure
 dotnet run --project src/DigitalRegistry.Api          # http://localhost:5275
 dotnet run --project src/DigitalRegistry.Master.Api   # http://localhost:5285
 python tools/api-walkthrough/main.py
 ```
 
-It creates data as it goes — a restaurant, a licence, orders, shifts — so run it against a
-development database only, and re-drop before running it again.
+The database has to carry the demo seed, which the API writes on first run in Development. Beyond
+that the script is repeatable: everything it creates carries `api.RUN`, a suffix taken from the
+clock, and the one thing that cannot carry one — a table number — follows the highest already in
+use. So a second run is a second pass rather than a wall of 409s.
+
+It still creates data as it goes — a restaurant, a licence, orders, shifts — so point it at a
+development database only.
 
 ## Layout
 
@@ -50,6 +51,6 @@ and the platform dashboard against the tables it counts.
 python tools/api-walkthrough/dbwalk.py
 ```
 
-Unlike `main.py`, this one is repeatable: names carry a per-run suffix, table numbers follow the
+Like `main.py`, this one is repeatable: names carry a per-run suffix, table numbers follow the
 highest in use, and it removes the shifts it generates. Point `db.DATABASE` at whatever database the
 API is running against — the two must be the same, or every row check fails for the wrong reason.

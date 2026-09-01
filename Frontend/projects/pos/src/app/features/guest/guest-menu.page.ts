@@ -3,7 +3,7 @@ import { Component, OnInit, computed, inject, input, signal } from '@angular/cor
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MenuItemDto } from 'shared';
+import { MenuItemDto, TableTabDto, itemsLabel } from 'shared';
 
 import { GuestSessionService } from './guest-session.service';
 
@@ -20,9 +20,10 @@ interface BasketLine {
  * where a thumb reaches it. There is no sign-in and no account — the token in the link is the whole
  * session, and it says only which table this is.
  *
- * The guest never sees a bill or a total to settle: ordering this way still ends with a waiter
- * bringing the bill, because payment goes through the till. What they get is the menu of the venue
- * their table belongs to, and a way to send an order to the bar without waiting to be noticed.
+ * The guest never sees a bill to settle: ordering this way still ends with a waiter bringing one,
+ * because payment goes through the till. What they get is the menu of the venue their table belongs
+ * to, a way to send an order to the bar without waiting to be noticed, and a running list of what
+ * the table has had — which no single round can tell them, since each round opens its own order.
  */
 @Component({
   selector: 'pos-guest-menu',
@@ -66,6 +67,17 @@ interface BasketLine {
             }
           </ul>
 
+          @if (tab(); as running) {
+            @if (running.rounds.length > 1) {
+              <p class="guest__muted guest__running">
+                Za ovaj sto do sada: {{ running.itemCount }} {{ itemsLabel(running.itemCount) }} ·
+                <strong class="guest__numeric">
+                  {{ running.total | currency: 'RSD' : 'symbol-narrow' : '1.0-0' }}
+                </strong>
+              </p>
+            }
+          }
+
           <button mat-flat-button class="guest__wide" (click)="orderMore()">Poruči još nešto</button>
         </div>
       } @else {
@@ -88,6 +100,41 @@ interface BasketLine {
               </button>
             }
           </nav>
+        }
+
+        @if (tab(); as running) {
+          @if (running.rounds.length > 0) {
+            <details class="guest__tab" [open]="tabOpen()" (toggle)="tabOpen.set($any($event.target).open)">
+              <summary class="guest__tab-head">
+                <span>Već ste poručili ({{ running.itemCount }})</span>
+                <span class="guest__numeric">
+                  {{ running.total | currency: 'RSD' : 'symbol-narrow' : '1.0-0' }}
+                </span>
+              </summary>
+
+              <ul class="guest__tab-lines">
+                @for (round of running.rounds; track round.orderId) {
+                  @for (line of round.lines; track $index) {
+                    <li>
+                      <span>
+                        {{ line.quantity }}× {{ line.menuItemName }}
+                        @if (!round.placedByGuest) {
+                          <span class="guest__muted">· konobar</span>
+                        }
+                      </span>
+                      <span class="guest__numeric">
+                        {{ line.lineTotal | currency: 'RSD' : 'symbol-narrow' : '1.0-0' }}
+                      </span>
+                    </li>
+                  }
+                }
+              </ul>
+
+              <p class="guest__muted guest__tab-note">
+                Iznos je informativan. Račun se plaća kod konobara.
+              </p>
+            </details>
+          }
         }
 
         <ul class="guest__list">
@@ -130,7 +177,7 @@ interface BasketLine {
       @if (basket().length > 0 && !sent() && !error()) {
         <div class="guest__basket">
           <div class="guest__basket-summary">
-            <strong>{{ count() }} {{ count() === 1 ? 'stavka' : 'stavki' }}</strong>
+            <strong>{{ count() }} {{ itemsLabel(count()) }}</strong>
             <span class="guest__numeric">
               {{ total() | currency: 'RSD' : 'symbol-narrow' : '1.0-0' }}
             </span>
@@ -258,6 +305,7 @@ interface BasketLine {
     .guest__count {
       min-width: 24px;
       text-align: center;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
       font-weight: 600;
     }
@@ -285,6 +333,7 @@ interface BasketLine {
     }
 
     .guest__numeric {
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
       font-weight: 600;
     }
@@ -331,6 +380,47 @@ interface BasketLine {
       padding: 40px 0;
       text-align: center;
     }
+
+    /* Collapsed by default once there is a lot on it: the menu is what the guest came for. */
+    .guest__tab {
+      margin: 12px 0;
+      padding: 10px 14px;
+      border-radius: var(--dr-radius);
+      background: var(--mat-sys-secondary-container);
+      color: var(--mat-sys-on-secondary-container);
+    }
+
+    .guest__tab-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .guest__tab-lines {
+      list-style: none;
+      margin: 10px 0 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 0.9rem;
+    }
+
+    .guest__tab-lines li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .guest__tab-note {
+      margin: 10px 0 0;
+    }
+
+    .guest__running {
+      margin: 4px 0 16px;
+    }
   `,
 })
 export class GuestMenuPage implements OnInit {
@@ -343,6 +433,9 @@ export class GuestMenuPage implements OnInit {
   protected readonly menu = signal<MenuItemDto[]>([]);
   protected readonly basket = signal<BasketLine[]>([]);
   protected readonly sent = signal<BasketLine[] | null>(null);
+  protected readonly tab = signal<TableTabDto | null>(null);
+  protected readonly tabOpen = signal(false);
+  protected readonly itemsLabel = itemsLabel;
   protected readonly category = signal<string | null>(null);
   protected readonly venueName = signal('');
   protected readonly loading = signal(true);
@@ -418,6 +511,7 @@ export class GuestMenuPage implements OnInit {
           this.sending.set(false);
           this.sent.set(lines);
           this.basket.set([]);
+          this.loadTab();
         },
         // The error interceptor has already said what went wrong; the basket is kept so the guest
         // can simply press send again rather than rebuild it.
@@ -455,6 +549,22 @@ export class GuestMenuPage implements OnInit {
         this.loading.set(false);
         this.error.set('Jelovnik trenutno nije dostupan. Pozovite konobara.');
       },
+    });
+
+    this.loadTab();
+  }
+
+  /**
+   * Reads what the table has had so far.
+   *
+   * Failure is swallowed on purpose: this is context, not the reason the guest opened the page, and
+   * a menu that refuses to appear because a summary could not be fetched would be worse than one
+   * without the summary.
+   */
+  private loadTab(): void {
+    this.guests.tab().subscribe({
+      next: (running) => this.tab.set(running),
+      error: () => this.tab.set(null),
     });
   }
 }

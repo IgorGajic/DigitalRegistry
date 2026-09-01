@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -8,10 +9,19 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
-import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusLabels } from 'shared';
+import { Subject, debounceTime, distinctUntilChanged, startWith, switchMap } from 'rxjs';
+import {
+  LicenseStatus,
+  LoadingState,
+  PlatformApiService,
+  RestaurantSummaryDto,
+  daysLabel,
+  licenseStatusLabels,
+} from 'shared';
 
 /**
  * Every venue on the platform, ordered by whatever is closest to lapsing.
@@ -32,10 +42,15 @@ import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusL
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatProgressBarModule,
     MatTableModule,
     MatTooltipModule,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <header class="rest__header">
         <h1>Restorani</h1>
@@ -43,7 +58,7 @@ import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusL
 
         <mat-form-field appearance="outline" class="rest__search">
           <mat-label>Pretraga</mat-label>
-          <input matInput [(ngModel)]="search" (ngModelChange)="load()" />
+          <input matInput [(ngModel)]="search" (ngModelChange)="search$.next($event)" />
           <mat-icon matSuffix>search</mat-icon>
         </mat-form-field>
 
@@ -115,7 +130,7 @@ import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusL
           <ng-container matColumnDef="license">
             <th mat-header-cell *matHeaderCellDef>Licenca</th>
             <td mat-cell *matCellDef="let row">
-              <span class="rest__badge" [style.background]="badgeBackground(row)" [style.color]="badgeColour(row)">
+              <span class="rest__badge" [style.background]="badgeBackground(row)">
                 {{ statusLabel(row.licenseStatus) }}
               </span>
             </td>
@@ -126,7 +141,9 @@ import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusL
             <td mat-cell *matCellDef="let row">
               @if (row.licenseExpiresAtUtc) {
                 {{ row.licenseExpiresAtUtc | date: 'dd.MM.yyyy.' }}
-                <span class="dr-muted">({{ row.daysRemaining }} dana)</span>
+                <span class="dr-muted">
+                  ({{ row.daysRemaining }} {{ daysLabel(row.daysRemaining) }})
+                </span>
               } @else {
                 <span class="dr-muted">nema licencu</span>
               }
@@ -169,6 +186,8 @@ import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusL
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     .rest__header {
       display: flex;
       align-items: center;
@@ -209,6 +228,8 @@ import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusL
 
     .rest__badge {
       display: inline-block;
+      /* White on every one of the four status colours, which are all mid-to-dark by construction. */
+      color: #fff;
       padding: 2px 10px;
       border-radius: 999px;
       font-size: 0.75rem;
@@ -230,12 +251,33 @@ import { LicenseStatus, PlatformApiService, RestaurantSummaryDto, licenseStatusL
     code {
       font-size: 0.8rem;
     }
+
+    @include rt.labels((
+      name: 'Restoran',
+      license: 'Licenca',
+      expires: 'Ističe',
+      staff: 'Osoblje',
+      active: 'Stanje',
+    ));
+
+    @media (max-width: 900px) {
+      .rest__search {
+        width: 100%;
+      }
+
+      /* The form is a responsive grid already; below the breakpoint it is one column. */
+      .rest__form form {
+        grid-template-columns: 1fr;
+      }
+    }
   `,
 })
 export class RestaurantsPage {
   private readonly api = inject(PlatformApiService);
   private readonly router = inject(Router);
 
+  protected readonly loading = new LoadingState();
+  protected readonly daysLabel = daysLabel;
   protected readonly columns = ['name', 'license', 'expires', 'staff', 'active', 'actions'];
   protected readonly restaurants = signal<RestaurantSummaryDto[]>([]);
   protected readonly showForm = signal(false);
@@ -251,13 +293,29 @@ export class RestaurantsPage {
     phoneNumber: [''],
   });
 
-  constructor() {
-    this.load();
-  }
+  /**
+   * Typing drives the list through here rather than calling the API directly.
+   *
+   * Without the debounce every keystroke was a request; without `switchMap` the answers could also
+   * arrive out of order, so a slow response to "ka" could land after the one for "kafana" and put
+   * the wrong rows on screen. `startWith` covers the first load, so there is one path into the list
+   * instead of two.
+   */
+  protected readonly search$ = new Subject<string>();
 
-  protected load(): void {
-    this.api
-      .restaurants({ search: this.search.trim() || undefined })
+  constructor() {
+    this.search$
+      .pipe(
+        startWith(this.search),
+        debounceTime(250),
+        distinctUntilChanged(),
+        // Tracked inside the switch, so an abandoned search stops counting the moment it is
+        // superseded rather than leaving the bar up until its response arrives.
+        switchMap((term) =>
+          this.loading.track(this.api.restaurants({ search: term.trim() || undefined })),
+        ),
+        takeUntilDestroyed(),
+      )
       .subscribe((rows) => this.restaurants.set(rows));
   }
 
@@ -291,17 +349,6 @@ export class RestaurantsPage {
 
   protected statusLabel(status: LicenseStatus): string {
     return licenseStatusLabels[status];
-  }
-
-  protected badgeColour(row: RestaurantSummaryDto): string {
-    switch (row.licenseStatus) {
-      case LicenseStatus.Active:
-        return row.daysRemaining <= 30 ? '#fff' : '#fff';
-      case LicenseStatus.Suspended:
-        return '#fff';
-      default:
-        return '#fff';
-    }
   }
 
   protected badgeBackground(row: RestaurantSummaryDto): string {

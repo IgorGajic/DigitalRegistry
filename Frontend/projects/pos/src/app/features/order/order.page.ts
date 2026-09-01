@@ -8,15 +8,19 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import {
   AuthService,
   FloorPlanTableDto,
+  PromptDialog,
+  PromptDialogData,
   MenuItemDto,
   OrderDto,
   OrderItemDto,
   TillApiService,
   UserRole,
+  seatsLabel,
 } from 'shared';
 
 import { PaymentDialog, PaymentDialogResult } from './payment.dialog';
@@ -40,6 +44,7 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from './void.dialog';
     MatDividerModule,
     MatIconModule,
     MatProgressBarModule,
+    MatTooltipModule,
   ],
   template: `
     @if (busy()) {
@@ -55,7 +60,7 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from './void.dialog';
           </button>
           <div>
             <h1>Sto {{ table()?.tableNumber ?? '—' }}</h1>
-            <span class="dr-muted">{{ table()?.capacity }} mesta</span>
+            <span class="dr-muted">{{ table()?.capacity }} {{ seatsLabel(table()?.capacity ?? 0) }}</span>
           </div>
         </header>
 
@@ -104,6 +109,15 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from './void.dialog';
 
                   <!-- Taking anything off the bill is a void, never a quiet decrement: the API
                        refuses a reduction through the ordinary edit, and requires a reason. -->
+                  <button
+                    mat-icon-button
+                    (click)="editNote(line)"
+                    [matTooltip]="line.notes ? 'Izmeni napomenu' : 'Dodaj napomenu'"
+                    [attr.aria-label]="line.notes ? 'Izmeni napomenu' : 'Dodaj napomenu'"
+                  >
+                    <mat-icon [class.order__note-on]="line.notes">sticky_note_2</mat-icon>
+                  </button>
+
                   <button
                     mat-icon-button
                     color="warn"
@@ -223,7 +237,7 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from './void.dialog';
 
     .order__line {
       display: grid;
-      grid-template-columns: 1fr auto auto auto auto;
+      grid-template-columns: 1fr auto auto auto auto auto;
       align-items: center;
       gap: 6px;
       padding: 6px 8px 6px 12px;
@@ -245,7 +259,13 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from './void.dialog';
       color: var(--mat-sys-on-surface-variant);
     }
 
+    /* A line that carries a note says so on the icon, so it reads without opening anything. */
+    .order__note-on {
+      color: var(--dr-reserved);
+    }
+
     .order__qty {
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
       color: var(--mat-sys-on-surface-variant);
     }
@@ -269,6 +289,7 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from './void.dialog';
 
     .order__total strong {
       font-size: 1.6rem;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
@@ -329,6 +350,7 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from './void.dialog';
     }
 
     .order__item-price {
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
       color: var(--mat-sys-on-surface-variant);
     }
@@ -360,6 +382,8 @@ export class OrderPage {
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly auth = inject(AuthService);
+
+  protected readonly seatsLabel = seatsLabel;
 
   protected readonly order = signal<OrderDto | null>(null);
 
@@ -427,6 +451,46 @@ export class OrderPage {
     this.run(this.api.increaseLine(current.id, line.id, line.quantity + 1), (updated) =>
       this.order.set(updated),
     );
+  }
+
+  /**
+   * Adds, changes or clears the note on a line.
+   *
+   * The note already printed on the bill and on the receipt; there was simply nowhere to type it,
+   * so "bez leda" had to be carried to the bar in somebody's head. Clearing is distinguished from
+   * cancelling by the empty string: the dialog closes with `undefined` when it is dismissed.
+   */
+  protected editNote(line: OrderItemDto): void {
+    const current = this.order();
+
+    if (!current) {
+      return;
+    }
+
+    const data: PromptDialogData = {
+      title: `Napomena: ${line.menuItemName}`,
+      label: 'Napomena za šank ili kuhinju',
+      placeholder: 'npr. bez leda, dobro pečeno, odvojeno',
+      hint: 'Ide na račun i na otisak. Ostavite prazno da je uklonite.',
+      initialValue: line.notes ?? '',
+      multiline: true,
+      // Zero, so an existing note can be cleared. Cancelling still returns undefined.
+      minLength: 0,
+      confirmText: 'Sačuvaj',
+    };
+
+    this.dialog
+      .open(PromptDialog, { data })
+      .afterClosed()
+      .subscribe((notes: string | undefined) => {
+        if (notes === undefined) {
+          return;
+        }
+
+        this.run(this.api.changeNotes(current.id, line.id, notes.trim() || null), (updated) =>
+          this.order.set(updated),
+        );
+      });
   }
 
   protected voidLine(line: OrderItemDto): void {

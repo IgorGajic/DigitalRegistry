@@ -8,6 +8,7 @@ using DigitalRegistry.Application.Features.Tables.Commands.InitializeTableSessio
 using DigitalRegistry.Application.Features.Tables.Commands.UpdateTable;
 using DigitalRegistry.Application.Features.Tables.Queries.GetAvailableTables;
 using DigitalRegistry.Application.Features.Tables.Queries.GetTableById;
+using DigitalRegistry.Application.Features.Tables.Queries.GetTableQrCodes;
 using DigitalRegistry.Application.Features.Tables;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -39,6 +40,20 @@ public class TablesController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
     public async Task<ActionResult> GetById(Guid id, CancellationToken cancellationToken) =>
         ToActionResult(await Sender.Send(new GetTableByIdQuery(id), cancellationToken));
+
+    /// <summary>Every table's QR token, for printing the codes that go on the tables.</summary>
+    /// <remarks>
+    /// The tokens are credentials, so this sits behind the same policy as the rest of table
+    /// management. Grouped by room, because the printed sheet is cut up room by room.
+    /// </remarks>
+    /// <response code="200">The tables and their tokens.</response>
+    [HttpGet("qr-codes")]
+    [Authorize(Policy = AuthorizationPolicies.ManageTables)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<TableQrCodeSheetEntryDto>))]
+    public async Task<ActionResult> GetQrCodes(
+        [FromQuery] GetTableQrCodesQuery query,
+        CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(query, cancellationToken));
 
     /// <summary>Adds a table to the floor plan.</summary>
     /// <response code="201">The table was created.</response>

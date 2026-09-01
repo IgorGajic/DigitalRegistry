@@ -17,6 +17,14 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
         builder.Property(reservation => reservation.PartySize)
             .IsRequired();
 
+        // Written by the desk for a telephone booking; absent when the guest booked it themselves,
+        // where the name comes from the account instead.
+        builder.Property(reservation => reservation.ContactName)
+            .HasMaxLength(200);
+
+        builder.Property(reservation => reservation.ContactPhone)
+            .HasMaxLength(50);
+
         builder.HasOne(reservation => reservation.Table)
             .WithMany(table => table.Reservations)
             .HasForeignKey(reservation => reservation.TableId)
@@ -26,6 +34,13 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
         builder.HasOne(reservation => reservation.Guest)
             .WithMany(user => user.Reservations)
             .HasForeignKey(reservation => reservation.GuestId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Who answered the telephone. No inverse collection: nothing asks a member of staff for the
+        // bookings they took, and the audit trail is read from the reservation's own side.
+        builder.HasOne(reservation => reservation.TakenBy)
+            .WithMany()
+            .HasForeignKey(reservation => reservation.TakenByUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // The double-booking check filters by table and then by time window.
@@ -39,6 +54,14 @@ public class ReservationConfiguration : IEntityTypeConfiguration<Reservation>
         builder.Ignore(reservation => reservation.BlocksTable);
 
         builder.ToTable(table =>
-            table.HasCheckConstraint("CK_Reservation_Period", "[EndTime] > [StartTime]"));
+        {
+            table.HasCheckConstraint("CK_Reservation_Period", "[EndTime] > [StartTime]");
+
+            // A booking is either a guest's own or the desk's, and a desk booking has to say who it
+            // is for. Enforced here because the service sheet has no other name to print.
+            table.HasCheckConstraint(
+                "CK_Reservation_Booker",
+                "([GuestId] IS NOT NULL) OR ([ContactName] IS NOT NULL)");
+        });
     }
 }

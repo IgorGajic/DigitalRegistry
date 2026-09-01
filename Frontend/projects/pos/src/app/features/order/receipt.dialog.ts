@@ -37,7 +37,7 @@ export interface ReceiptDialogResult {
   selector: 'pos-receipt-dialog',
   imports: [CurrencyPipe, DatePipe, MatButtonModule, MatDialogModule, MatIconModule],
   template: `
-    <div class="receipt" id="dr-receipt">
+    <div class="receipt dr-printable" id="dr-receipt">
       @if (receipt.isReversed || receipt.status === OrderStatus.Voided) {
         <p class="receipt__void">STORNIRANO — NEVAŽEĆI RAČUN</p>
       }
@@ -121,7 +121,9 @@ export interface ReceiptDialogResult {
       max-width: 100%;
       margin: 0 auto;
       padding: 8px 0;
-      font-family: 'Roboto Mono', ui-monospace, monospace;
+      /* The face the rest of the application borrows its figures from. It was 'Roboto Mono',
+         which was never loaded — every bill printed in whatever the platform happened to have. */
+      font-family: var(--dr-font-mono);
       font-size: 0.78rem;
       color: #000;
       background: #fff;
@@ -190,6 +192,7 @@ export interface ReceiptDialogResult {
       text-align: right;
       white-space: nowrap;
       padding-left: 6px !important;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
@@ -204,6 +207,7 @@ export interface ReceiptDialogResult {
     }
 
     .receipt__total strong {
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 

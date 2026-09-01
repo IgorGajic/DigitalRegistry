@@ -6,6 +6,7 @@ import { catchError, throwError } from 'rxjs';
 
 import { AuthService } from '../auth/auth.service';
 import { API_BASE_URL, LICENSE_ROUTE } from '../config/tokens';
+import { toSerbian } from './messages';
 
 /**
  * Marks a request as belonging to a scanned table session rather than to the signed-in member of
@@ -104,27 +105,35 @@ export const errorInterceptor: HttpInterceptorFn = (request, next) => {
 };
 
 /**
- * Reads an RFC 7807 problem response.
+ * Reads an RFC 7807 problem response, in Serbian.
  *
  * The API returns validation failures as `errors`, keyed by field, and everything else as `detail`.
  * Falling back through both means a message never comes out as "[object Object]".
+ *
+ * The API answers in English, so everything that comes out of here goes through {@link toSerbian}.
+ * That is the single point where it can be done: this function is what the snackbar shows and what
+ * both sign-in forms print, so nothing reaches a screen around it.
  */
 export function describe(error: HttpErrorResponse): string {
   const problem = error.error;
 
   if (typeof problem === 'string' && problem.trim()) {
-    return problem;
+    return toSerbian(problem);
   }
 
   if (problem?.errors && typeof problem.errors === 'object') {
     const messages = Object.values(problem.errors as Record<string, string[]>).flat();
 
     if (messages.length) {
-      return messages.join(' ');
+      // Each field's complaint is translated on its own: they are separate sentences from separate
+      // validators, and a joined string would match nothing.
+      return messages.map(toSerbian).join(' ');
     }
   }
 
-  return problem?.detail || problem?.title || 'Došlo je do greške.';
+  const detail = problem?.detail || problem?.title;
+
+  return detail ? toSerbian(detail) : 'Došlo je do greške.';
 }
 
 function notify(snackBar: MatSnackBar, message: string): void {

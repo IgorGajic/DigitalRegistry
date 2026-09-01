@@ -118,3 +118,64 @@ export function describeDays(days: WeekDays): string {
 
   return named.length ? named.join(', ') : '—';
 }
+
+/**
+ * Picks the Serbian plural form for a count.
+ *
+ * Serbian has three, not two: 1 stavka, 2–4 stavke, 5+ stavki — and the teens break the pattern, so
+ * 21 takes the singular while 11 does not. A two-way `count === 1 ? … : …` gets the common cases
+ * wrong, and "3 stavki" reads as broken to anybody using the till.
+ *
+ * @param one Form for 1, 21, 31 … — anything ending in 1 that is not 11.
+ * @param few Form for 2–4, 22–24 … — anything ending in 2–4 that is not 12–14.
+ * @param many Form for everything else, including 0 and the teens.
+ */
+export function plural(count: number, one: string, few: string, many: string): string {
+  const last = Math.abs(count) % 10;
+  const lastTwo = Math.abs(count) % 100;
+
+  if (last === 1 && lastTwo !== 11) {
+    return one;
+  }
+
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) {
+    return few;
+  }
+
+  return many;
+}
+
+/** "stavka" / "stavke" / "stavki", the count this application says most often. */
+export function itemsLabel(count: number): string {
+  return plural(count, 'stavka', 'stavke', 'stavki');
+}
+
+/** "dan" / "dana" / "dana" — the middle and plural forms coincide here. */
+export function daysLabel(count: number): string {
+  return plural(count, 'dan', 'dana', 'dana');
+}
+
+/** "sto" / "stola" / "stolova" — the one noun this application counts on every screen. */
+export function tablesLabel(count: number): string {
+  return plural(count, 'sto', 'stola', 'stolova');
+}
+
+/** "mesto" / "mesta" / "mesta", for a table's capacity. */
+export function seatsLabel(count: number): string {
+  return plural(count, 'mesto', 'mesta', 'mesta');
+}
+
+/** "nalog" / "naloga" / "naloga", for staff accounts. */
+export function accountsLabel(count: number): string {
+  return plural(count, 'nalog', 'naloga', 'naloga');
+}
+
+/** "račun" / "računa" / "računa", for a count of bills. */
+export function billsLabel(count: number): string {
+  return plural(count, 'račun', 'računa', 'računa');
+}
+
+/** "dodela" / "dodele" / "dodela" — a feminine noun, so the forms differ from the masculine ones. */
+export function assignmentsLabel(count: number): string {
+  return plural(count, 'dodela', 'dodele', 'dodela');
+}

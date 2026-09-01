@@ -35,3 +35,31 @@ public record TransactionDto(
     decimal Amount,
     PaymentMethod PaymentMethod,
     DateTime TransactionDate);
+
+/// <summary>
+/// One line of the bill list: a tab as it appears on the "recent bills" screen.
+/// </summary>
+/// <remarks>
+/// Deliberately without the order's lines. The list exists to find a bill again — by table, by hour,
+/// by amount — and pulling every line of every order to render a table of totals would fetch far
+/// more than the screen shows. The lines arrive with the receipt, once one bill has been chosen.
+/// </remarks>
+/// <param name="PaidAtUtc">When payment was taken, or null while the tab is still running.</param>
+/// <param name="IsReversed">
+/// True once a settled bill has been backed out. Kept separate from <paramref name="Status"/> for
+/// the client, which greys such rows rather than offering to reverse them a second time.
+/// </param>
+public record OrderSummaryDto(
+    Guid Id,
+    string Number,
+    Guid TableId,
+    int TableNumber,
+    OrderStatus Status,
+    bool PlacedByGuest,
+    string? ServedBy,
+    DateTime CreatedAt,
+    DateTime? PaidAtUtc,
+    PaymentMethod? PaymentMethod,
+    int ItemCount,
+    decimal Total,
+    bool IsReversed);

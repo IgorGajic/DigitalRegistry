@@ -1,0 +1,133 @@
+// Shared foundation for both applications.
+//
+// The two hosts theme themselves differently on purpose — a member of staff must never mistake the
+// platform administration for their own till — but the type, the spacing, the corner radii and the
+// utility classes are one system, and live here so they cannot drift apart.
+
+// ---------------------------------------------------------------------------------- typefaces
+//
+// Three faces, three jobs.
+//
+// Archivo carries headings and chrome: a grotesque with enough width and weight to hold a screen
+// read at arm's length, standing. Inter carries running text and table cells, where it is far more
+// legible at 13–14 px than a display face would be. IBM Plex Mono carries every number.
+//
+// That last one is the point of the whole scheme. This application's output is a printed receipt —
+// 80 mm of fixed-width columns — and its screens are columns of money: a bill, a day's takings, a
+// stock valuation. Setting figures in a proportional face and reaching for `tabular-nums` was
+// already happening in eight places by hand; this makes it the rule instead of the exception, and
+// the receipt itself stops being a special case. Digits line up because they are the same width,
+// not because a font feature was remembered.
+$dr-brand: Archivo, 'Segoe UI', Roboto, sans-serif;
+$dr-plain: Inter, 'Segoe UI', Roboto, sans-serif;
+$dr-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+@mixin foundation {
+  :root {
+    --dr-font-brand: #{$dr-brand};
+    --dr-font-plain: #{$dr-plain};
+    --dr-font-mono: #{$dr-mono};
+
+    --dr-gap: 16px;
+
+    // Two steps, both tighter than Material's default. Enough to read as considered, not enough to
+    // read as decoration.
+    --dr-radius: 6px;
+    --dr-radius-sm: 3px;
+  }
+
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    font-family: var(--dr-font-plain);
+    background: var(--mat-sys-surface-container-low);
+    color: var(--mat-sys-on-surface);
+    // Serbian sets a lot of diacritics — č ć š ž đ — and they collide with tight leading.
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  .mat-mdc-card-title,
+  .mat-mdc-tab .mdc-tab__text-label,
+  .mat-mdc-button,
+  .mat-mdc-unelevated-button,
+  .mat-mdc-outlined-button {
+    font-family: var(--dr-font-brand);
+    letter-spacing: -0.01em;
+  }
+
+  h1 {
+    font-weight: 600;
+  }
+
+  // ------------------------------------------------------------------------------- utilities
+
+  .dr-page {
+    padding: var(--dr-gap);
+    margin: 0 auto;
+  }
+
+  .dr-toolbar-spacer {
+    flex: 1 1 auto;
+  }
+
+  .dr-muted {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  .dr-empty {
+    padding: 48px 16px;
+    text-align: center;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  // Every figure in the application: money, quantities, table numbers, times.
+  .dr-numeric {
+    font-family: var(--dr-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.95em;
+    text-align: right;
+  }
+
+  // A number that is the answer to the screen — a bill total, a day's takings — rather than one
+  // figure among many in a column.
+  .dr-figure {
+    font-family: var(--dr-font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+
+  // Small caps eyebrow, borrowed from the receipt's header. Used for the label above a figure.
+  .dr-eyebrow {
+    font-family: var(--dr-font-brand);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  // ------------------------------------------------------------------------- quality floor
+
+  // The till is worked by keyboard as often as by finger — a waiter tabbing through a bill — and
+  // Material's default focus ring disappears against a coloured row.
+  :focus-visible {
+    outline: 2px solid var(--mat-sys-primary);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

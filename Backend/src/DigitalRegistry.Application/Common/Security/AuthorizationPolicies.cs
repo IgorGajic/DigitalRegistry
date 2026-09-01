@@ -42,6 +42,17 @@ public static class AuthorizationPolicies
     public const string ProcessPayment = nameof(ProcessPayment);
 
     /// <summary>
+    /// Look up bills that have already been settled, and reprint them.
+    /// </summary>
+    /// <remarks>
+    /// Not a row in the specification's matrix. Separated from <see cref="ProcessPayment"/> because
+    /// reading a bill back is not taking money: a manager who may reverse a settled bill has to be
+    /// able to see it first, and a waiter asked for a copy of a bill they closed an hour ago should
+    /// not have to fetch somebody senior. Reversing it remains <see cref="ApproveVoid"/>.
+    /// </remarks>
+    public const string ViewOrderHistory = nameof(ViewOrderHistory);
+
+    /// <summary>
     /// Cancel a line or a whole unpaid tab, returning what it consumed to stock.
     /// </summary>
     /// <remarks>
@@ -106,6 +117,7 @@ public static class AuthorizationPolicies
         [OpenStaffOrder] = [UserRole.Waiter, UserRole.Owner],
         [ModifyOrder] = [UserRole.Waiter, UserRole.Owner],
         [ProcessPayment] = [UserRole.Waiter, UserRole.Owner],
+        [ViewOrderHistory] = [UserRole.Waiter, UserRole.Manager, UserRole.Owner],
         [VoidOrder] = [UserRole.Waiter, UserRole.Owner],
         [ApproveVoid] = [UserRole.Manager, UserRole.Owner],
         [ManageTables] = [UserRole.Manager, UserRole.Owner],

@@ -8,12 +8,16 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatListModule } from '@angular/material/list';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
+  ConfirmDialog,
+  ConfirmDialogData,
   InventoryValuationLineDto,
+  LoadingState,
   MenuItemDetailDto,
   MenuItemDto,
   TillApiService,
@@ -43,11 +47,16 @@ import { RecipeDialog, RecipeDialogResult } from './recipe.dialog';
     MatIconModule,
     MatInputModule,
     MatListModule,
+    MatProgressBarModule,
     MatSlideToggleModule,
     MatTableModule,
     MatTooltipModule,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <header class="menu__header">
         <h1>Jelovnik</h1>
@@ -199,6 +208,8 @@ import { RecipeDialog, RecipeDialogResult } from './recipe.dialog';
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     .menu__header {
       display: flex;
       align-items: center;
@@ -274,6 +285,12 @@ import { RecipeDialog, RecipeDialogResult } from './recipe.dialog';
         grid-template-columns: 1fr;
       }
     }
+
+    @include rt.labels((
+      name: 'Artikal',
+      category: 'Kategorija',
+      price: 'Cena',
+    ));
   `,
 })
 export class MenuPage {
@@ -281,6 +298,7 @@ export class MenuPage {
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
 
+  protected readonly loading = new LoadingState();
   protected readonly unitLabels = unitLabels;
   protected readonly columns = ['name', 'category', 'price', 'actions'];
 
@@ -303,7 +321,7 @@ export class MenuPage {
   }
 
   protected load(): void {
-    this.api.menu().subscribe((items) => {
+    this.loading.track(this.api.menu()).subscribe((items) => {
       this.items.set(items);
       this.categories.set([...new Set(items.map((item) => item.category))].sort());
     });
@@ -324,7 +342,7 @@ export class MenuPage {
       isAvailable: item.isAvailable,
     });
 
-    this.api.menuItem(item.id).subscribe((detail) => this.detail.set(detail));
+    this.loading.track(this.api.menuItem(item.id)).subscribe((detail) => this.detail.set(detail));
   }
 
   protected save(): void {
@@ -332,11 +350,13 @@ export class MenuPage {
       return;
     }
 
-    this.api.saveMenuItem({ id: this.editing(), ...this.form.getRawValue() }).subscribe((saved) => {
-      this.detail.set(saved);
-      this.editing.set(saved.id);
-      this.load();
-    });
+    this.loading
+      .track(this.api.saveMenuItem({ id: this.editing(), ...this.form.getRawValue() }))
+      .subscribe((saved) => {
+        this.detail.set(saved);
+        this.editing.set(saved.id);
+        this.load();
+      });
   }
 
   protected editRecipe(item: MenuItemDto): void {
@@ -362,15 +382,33 @@ export class MenuPage {
   }
 
   protected remove(item: MenuItemDto): void {
-    this.api.deleteMenuItem(item.id).subscribe({
-      next: () => {
-        this.startNew();
-        this.load();
-      },
-      // A 409 means the item is on past orders. The interceptor has already said so; this only
-      // keeps the list honest about what is still there.
-      error: () => this.load(),
-    });
+    const data: ConfirmDialogData = {
+      title: `Obrisati „${item.name}“?`,
+      message:
+        'Artikal nestaje iz jelovnika i sa kase. Ako je ikada prodat, brisanje se odbija — '
+        + 'tada ga umesto toga isključite iz ponude, da istorija računa ostane čitljiva.',
+      confirmText: 'Obriši artikal',
+      destructive: true,
+    };
+
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (!confirmed) {
+          return;
+        }
+
+        this.api.deleteMenuItem(item.id).subscribe({
+          next: () => {
+            this.startNew();
+            this.load();
+          },
+          // A 409 means the item is on past orders. The interceptor has already said so; this only
+          // keeps the list honest about what is still there.
+          error: () => this.load(),
+        });
+      });
   }
 
   /**
@@ -382,8 +420,8 @@ export class MenuPage {
   private loadIngredients(): void {
     const today = new Date();
 
-    this.api
-      .inventoryValuation(startOfDayUtc(today), endOfDayUtc(today))
+    this.loading
+      .track(this.api.inventoryValuation(startOfDayUtc(today), endOfDayUtc(today)))
       .subscribe((report) => this.ingredients.set(report.lines));
   }
 }

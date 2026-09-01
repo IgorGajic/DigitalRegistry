@@ -138,7 +138,8 @@ Jedna stvar se proverava na više mesta, i to namerno:
 | Nivo | Šta hvata | Gde |
 | :--- | :--- | :--- |
 | Unit testovi | domenska pravila i handleri | `tests/*.UnitTests` — 182 testa |
-| Integracioni testovi | rutiranje, RBAC, licencni zid, filteri, in-memory baza | `tests/DigitalRegistry.IntegrationTests` — 9 testova |
+| Integracioni testovi | rutiranje, RBAC, licencni zid, filteri, in-memory baza | `tests/DigitalRegistry.IntegrationTests` — 26 testova |
+| Frontend testovi | interceptori, sesija stola, boje sale, validacija rezervacije | `Frontend/projects/**/*.spec.ts` — 43 testa (vitest) |
 | Prolaz kroz API | svaka ruta oba hosta protiv SQL Servera | `tools/api-walkthrough/main.py` |
 | Prolaz kroz bazu | šta je svaki endpoint zaista upisao | `tools/api-walkthrough/dbwalk.py` |
 

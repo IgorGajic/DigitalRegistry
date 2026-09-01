@@ -8,10 +8,12 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
+  LoadingState,
   TillApiService,
   TopSellingItemDto,
   TurnoverReportDto,
@@ -22,6 +24,8 @@ import {
   toDateOnly,
   voidTypeLabels,
 } from 'shared';
+
+import { TurnoverChart } from './turnover-chart';
 
 /**
  * What the owner reads.
@@ -44,11 +48,17 @@ import {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatProgressBarModule,
     MatTableModule,
     MatTabsModule,
     MatTooltipModule,
+    TurnoverChart,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <header class="rep__header">
         <h1>Izveštaji</h1>
@@ -102,6 +112,19 @@ import {
             </mat-card-content>
           </mat-card>
         </div>
+      }
+
+      @if (turnover(); as report) {
+        @if (report.days.length > 1) {
+          <mat-card class="rep__chart">
+            <pos-turnover-chart
+              [days]="report.days"
+              [cash]="report.cash"
+              [card]="report.card"
+              [wallet]="report.digitalWallet"
+            />
+          </mat-card>
+        }
       }
 
       <mat-tab-group animationDuration="120ms">
@@ -303,6 +326,8 @@ import {
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     .rep__header {
       display: flex;
       align-items: center;
@@ -336,11 +361,16 @@ import {
 
     .rep__summary strong {
       font-size: 1.4rem;
+      font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }
 
     .rep__panel {
       margin-top: 12px;
+    }
+
+    .rep__chart {
+      margin-bottom: 16px;
     }
 
     table {
@@ -375,10 +405,47 @@ import {
       border-bottom: 1px solid var(--mat-sys-outline-variant);
       font-size: 0.875rem;
     }
+
+    /* All three tables on this screen share a stack; the labels are the union of their columns,
+       and a column absent from a given table simply never matches. */
+    @include rt.labels((
+      date: 'Dan',
+      turnover: 'Promet',
+      cash: 'Gotovina',
+      card: 'Kartica',
+      bills: 'Računa',
+      average: 'Prosek',
+      reversed: 'Stornirano',
+      name: 'Artikal',
+      category: 'Kategorija',
+      quantity: 'Prodato',
+      revenue: 'Prihod',
+      cost: 'Nabavna',
+      margin: 'Marža',
+      count: 'Storna',
+      amount: 'Iznos',
+      breakdown: 'Po tipu',
+    ));
+
+    @media (max-width: 900px) {
+      .rep__date {
+        width: 100%;
+      }
+
+      /* The individual voids are a five-column grid of their own, not a mat-table. */
+      .rep__voids li {
+        grid-template-columns: 1fr;
+        gap: 2px;
+        padding: 10px 0;
+      }
+    }
   `,
 })
 export class ReportsPage {
   private readonly api = inject(TillApiService);
+
+  /** Three calls go out together here, so the bar has to outlast the first one to come back. */
+  protected readonly loading = new LoadingState();
 
   protected readonly voidTypeLabels = voidTypeLabels;
   protected readonly turnoverColumns = [
@@ -416,14 +483,19 @@ export class ReportsPage {
     // Turnover groups by the venue's local business day, so it takes dates; the other two take UTC
     // instants. Sending one shape where the other is expected is off by hours and reads as a
     // rounding error.
-    this.api
-      .turnover(toDateOnly(this.from), toDateOnly(this.to))
+    this.loading
+      .track(this.api.turnover(toDateOnly(this.from), toDateOnly(this.to)))
       .subscribe((report) => this.turnover.set(report));
 
     const fromUtc = startOfDayUtc(this.from);
     const toUtc = endOfDayUtc(this.to);
 
-    this.api.topItems(fromUtc, toUtc, undefined, 20).subscribe((rows) => this.topItems.set(rows));
-    this.api.voidReport(fromUtc, toUtc).subscribe((report) => this.voids.set(report));
+    this.loading
+      .track(this.api.topItems(fromUtc, toUtc, undefined, 20))
+      .subscribe((rows) => this.topItems.set(rows));
+
+    this.loading
+      .track(this.api.voidReport(fromUtc, toUtc))
+      .subscribe((report) => this.voids.set(report));
   }
 }

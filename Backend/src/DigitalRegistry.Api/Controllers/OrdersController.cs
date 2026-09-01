@@ -8,6 +8,8 @@ using DigitalRegistry.Application.Features.Orders.Commands.VoidOpenOrder;
 using DigitalRegistry.Application.Features.Orders.Commands.VoidOrderItem;
 using DigitalRegistry.Application.Features.Orders.Commands.VoidPaidOrder;
 using DigitalRegistry.Application.Features.Orders.Queries.GetOrderById;
+using DigitalRegistry.Application.Features.Orders.Queries.GetOrders;
+using DigitalRegistry.Application.Features.Orders.Queries.GetTableSessionOrders;
 using DigitalRegistry.Application.Features.Orders.Queries.GetReceipt;
 using DigitalRegistry.Application.Features.Orders;
 using Microsoft.AspNetCore.Authorization;
@@ -20,6 +22,34 @@ namespace DigitalRegistry.Api.Controllers;
 /// </summary>
 public class OrdersController : ApiControllerBase
 {
+    /// <summary>Lists the tabs opened in a period, newest first.</summary>
+    /// <remarks>
+    /// How a settled bill is found again once its receipt has been closed. Defaults to the current
+    /// day; the summaries carry no lines, which arrive with the receipt once one bill is chosen.
+    /// </remarks>
+    /// <response code="200">The matching bills.</response>
+    [HttpGet]
+    [Authorize(Policy = AuthorizationPolicies.ViewOrderHistory)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<OrderSummaryDto>))]
+    public async Task<ActionResult> GetAll(
+        [FromQuery] GetOrdersQuery query,
+        CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(query, cancellationToken));
+
+    /// <summary>What the caller's own table has had so far, across every round still running.</summary>
+    /// <remarks>
+    /// Answers a QR table session. The table is taken from the session token, so this can only ever
+    /// return the caller's own table, and it is not a bill: nothing here can be settled from a phone.
+    /// </remarks>
+    /// <response code="200">The table's running tab.</response>
+    /// <response code="403">The caller has no table session.</response>
+    [HttpGet("mine")]
+    [Authorize(Policy = AuthorizationPolicies.ViewMenu)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(TableTabDto))]
+    [ProducesResponseType(StatusCodes.Status403Forbidden, Type = typeof(ProblemDetails))]
+    public async Task<ActionResult> GetMyTableTab(CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new GetTableSessionOrdersQuery(), cancellationToken));
+
     /// <summary>Fetches one tab with its lines and total.</summary>
     /// <response code="200">The order.</response>
     /// <response code="404">No order with that id is visible to the caller.</response>
@@ -134,7 +164,7 @@ public class OrdersController : ApiControllerBase
     /// <response code="200">The bill.</response>
     /// <response code="404">No order with that id.</response>
     [HttpGet("{id:guid}/receipt")]
-    [Authorize(Policy = AuthorizationPolicies.ProcessPayment)]
+    [Authorize(Policy = AuthorizationPolicies.ViewOrderHistory)]
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ReceiptDto))]
     [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
     public async Task<ActionResult> GetReceipt(Guid id, CancellationToken cancellationToken) =>

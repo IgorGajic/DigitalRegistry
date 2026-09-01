@@ -431,13 +431,21 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<DateTime>("Created")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime>("EndTime")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("GuestId")
+                    b.Property<Guid?>("GuestId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("Modified")
@@ -458,7 +466,12 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("TableId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("TakenByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TakenByUserId");
 
                     b.HasIndex("GuestId", "StartTime");
 
@@ -468,6 +481,8 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Reservations", t =>
                         {
+                            t.HasCheckConstraint("CK_Reservation_Booker", "([GuestId] IS NOT NULL) OR ([ContactName] IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_Reservation_Period", "[EndTime] > [StartTime]");
                         });
                 });
@@ -1255,8 +1270,7 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                     b.HasOne("DigitalRegistry.Domain.Entities.ApplicationUser", "Guest")
                         .WithMany("Reservations")
                         .HasForeignKey("GuestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("DigitalRegistry.Domain.Entities.Table", "Table")
                         .WithMany("Reservations")
@@ -1264,9 +1278,16 @@ namespace DigitalRegistry.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("DigitalRegistry.Domain.Entities.ApplicationUser", "TakenBy")
+                        .WithMany()
+                        .HasForeignKey("TakenByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Guest");
 
                     b.Navigation("Table");
+
+                    b.Navigation("TakenBy");
                 });
 
             modelBuilder.Entity("DigitalRegistry.Domain.Entities.Shift", b =>

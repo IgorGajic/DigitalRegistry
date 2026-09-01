@@ -11,6 +11,8 @@ export * from './lib/auth/auth.service';
 export * from './lib/auth/guards';
 
 export * from './lib/http/interceptors';
+export * from './lib/http/loading';
+export * from './lib/http/messages';
 
 export * from './lib/dialogs/prompt.dialog';
 export * from './lib/dialogs/confirm.dialog';
@@ -20,5 +22,7 @@ export * from './lib/api/platform-api.service';
 
 export * from './lib/format/labels';
 export * from './lib/format/dates';
+
+export * from './lib/charts/bar-chart';
 
 export * from './lib/realtime/realtime.service';

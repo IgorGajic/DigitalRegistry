@@ -5,10 +5,38 @@ endpoint can return 200 and write nothing, or write the right row against the wr
 neither shows up in the response body. Every assertion here is a `SELECT` run through `sqlcmd`,
 because the walkthrough is deliberately dependency-free and this keeps it that way.
 """
+import json
+import os
+import re
 import subprocess
 
-SERVER = r"localhost\SQLEXPRESS"
-DATABASE = "DigitalRegistryTest"
+
+def _from_api_settings():
+    """Server and database from the API's own development settings.
+
+    Read rather than restated, because the row checks are meaningless against a different database
+    from the one the API is writing to — and a stale literal here fails every check for the wrong
+    reason, which looks exactly like a real fault.
+    """
+    settings = os.path.join(os.path.dirname(__file__), "..", "..",
+                            "src", "DigitalRegistry.Api", "appsettings.Development.json")
+
+    try:
+        with open(settings, encoding="utf-8-sig") as file:
+            connection = json.load(file)["ConnectionStrings"]["DefaultConnection"]
+    except (OSError, KeyError, ValueError):
+        return None
+
+    server = re.search(r"Server=([^;]+)", connection, re.IGNORECASE)
+    database = re.search(r"(?:Initial Catalog|Database)=([^;]+)", connection, re.IGNORECASE)
+
+    if not server or not database:
+        return None
+
+    return server.group(1).strip(), database.group(1).strip()
+
+
+SERVER, DATABASE = _from_api_settings() or (r"localhost\SQLEXPRESS", "DigitalRegistry")
 
 results = []
 

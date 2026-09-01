@@ -6,12 +6,21 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { StaffMemberDto, TillApiService, UserRole, userRoleLabels } from 'shared';
+import {
+  ConfirmDialog,
+  ConfirmDialogData,
+  LoadingState,
+  StaffMemberDto,
+  TillApiService,
+  UserRole,
+  userRoleLabels,
+} from 'shared';
 
 import { StaffDialog, StaffDialogResult } from './staff.dialog';
 
@@ -31,12 +40,17 @@ import { StaffDialog, StaffDialogResult } from './staff.dialog';
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatProgressBarModule,
     MatSelectModule,
     MatSlideToggleModule,
     MatTableModule,
     MatTooltipModule,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       <header class="staff__header">
         <h1>Zaposleni</h1>
@@ -123,6 +137,8 @@ import { StaffDialog, StaffDialogResult } from './staff.dialog';
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     .staff__header {
       display: flex;
       align-items: center;
@@ -164,6 +180,13 @@ import { StaffDialog, StaffDialogResult } from './staff.dialog';
     code {
       font-size: 0.8rem;
     }
+
+    @include rt.labels((
+      name: 'Ime',
+      role: 'Uloga',
+      email: 'Email',
+      userName: 'Korisničko ime',
+    ));
   `,
 })
 export class StaffPage {
@@ -171,6 +194,7 @@ export class StaffPage {
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
 
+  protected readonly loading = new LoadingState();
   protected readonly UserRole = UserRole;
   protected readonly columns = ['name', 'role', 'email', 'userName', 'actions'];
 
@@ -187,7 +211,9 @@ export class StaffPage {
   }
 
   protected load(): void {
-    this.api.staff(this.includeDisabled).subscribe((rows) => this.staff.set(rows));
+    this.loading
+      .track(this.api.staff(this.includeDisabled))
+      .subscribe((rows) => this.staff.set(rows));
   }
 
   protected create(): void {
@@ -251,7 +277,35 @@ export class StaffPage {
       });
   }
 
+  /**
+   * Switches an account off, or back on.
+   *
+   * Only switching off asks: it locks somebody out mid-shift, and the person clicking is not
+   * necessarily the person who will find out. Turning an account back on takes nothing away, so
+   * making that one ask too would only train the owner to dismiss the dialog unread.
+   */
   protected setEnabled(member: StaffMemberDto, enabled: boolean): void {
-    this.api.setStaffEnabled(member.id, enabled).subscribe(() => this.load());
+    if (enabled) {
+      this.api.setStaffEnabled(member.id, true).subscribe(() => this.load());
+      return;
+    }
+
+    const data: ConfirmDialogData = {
+      title: `Ugasiti nalog: ${member.fullName}?`,
+      message:
+        'Prijava prestaje odmah — ako je osoba na smeni, izgubiće kasu iz ruku. '
+        + 'Ime ostaje na svim računima i smenama koje je radila, i nalog se kasnije vraća.',
+      confirmText: 'Ugasi nalog',
+      destructive: true,
+    };
+
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (confirmed) {
+          this.api.setStaffEnabled(member.id, false).subscribe(() => this.load());
+        }
+      });
   }
 }

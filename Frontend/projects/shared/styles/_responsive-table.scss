@@ -1,0 +1,133 @@
+// Turning a wide table into a stack of cards on a narrow screen.
+//
+// The till's stated device is a tablet, and most of these screens are `mat-table`s six to eight
+// columns wide. On a tablet held upright they simply ran off the side: the amount column, the one a
+// waiter is looking for, was the one past the edge. Horizontal scrolling inside a page that also
+// scrolls vertically is worse than it sounds — the wrong axis catches the finger about half the
+// time — so below the breakpoint each row becomes a card and each cell a labelled line.
+//
+// The labels come from CSS rather than from `data-label` attributes on sixty-odd cells: Material
+// already puts a `cdk-column-{name}` class on every cell it renders, header and body alike, so the
+// label can be attached to the column instead of to each cell. No template changes anywhere.
+//
+// Split in two on purpose. `structure` is identical for every table, so it is included once per
+// application, globally; `labels` is the only part that differs, so it is the only part a page
+// carries. Emitting the structure per component put the same forty lines into every screen's styles
+// and pushed two of them past the 4 kB component-style budget.
+
+@use 'sass:map';
+
+/// Where a row stops being a row. Below this every Material table stacks.
+$breakpoint: 900px !default;
+
+/// The stacking itself. Include once, globally, per application.
+///
+/// Scoped to `.mat-mdc-table` rather than to `table`, because a bare element selector here would
+/// also catch the receipt — 80 mm of deliberately aligned columns, which `display: block` would
+/// destroy.
+@mixin structure {
+  @media (max-width: $breakpoint) {
+    .mat-mdc-table {
+      display: block;
+    }
+
+    // The header is what the labels replace.
+    .mat-mdc-header-row {
+      display: none;
+    }
+
+    .mat-mdc-table tbody,
+    .mdc-data-table__content {
+      display: block;
+    }
+
+    .mat-mdc-row {
+      display: block;
+      height: auto;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: var(--dr-radius);
+      background: var(--mat-sys-surface);
+    }
+
+    .mat-mdc-cell {
+      display: flex;
+      align-items: baseline;
+      // Not `space-between`: a cell often holds more than one piece — a time and the time it
+      // opened, a status chip and the method — and space-between would push those apart from each
+      // other too. The label takes the free space instead, so it pins left and the value, however
+      // many pieces it is made of, stays together on the right.
+      justify-content: flex-end;
+      gap: 8px;
+      width: auto;
+      min-height: 0;
+      padding: 3px 0;
+      border: none;
+    }
+
+    // A cell with nothing in it would otherwise leave a labelled blank line on the card.
+    .mat-mdc-cell:empty {
+      display: none;
+    }
+
+    // How a label looks, stated once. `labels` below supplies only the words — without `content`
+    // a pseudo-element generates no box, so this is inert on any cell that is not named.
+    .mat-mdc-cell::before {
+      flex: 0 0 auto;
+      margin-right: auto;
+      padding-right: 8px;
+      font-family: var(--dr-font-brand);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    // Right-alignment is a column idea; in a stacked card the value already sits at the right end.
+    .mat-mdc-cell.dr-numeric {
+      text-align: left;
+    }
+
+    // Actions stop being a trailing column and become the card's footer.
+    .cdk-column-actions {
+      justify-content: flex-end;
+      gap: 4px;
+      margin-top: 6px;
+      padding-top: 6px;
+      border-top: 1px solid var(--mat-sys-outline-variant);
+      text-align: left;
+    }
+  }
+}
+
+/// Names each column, so its line on the card says what it is. Only the words: how a label looks
+/// is set once by `structure`.
+///
+/// @param {Map} $labels - column name (its `matColumnDef`) to the label its line should carry.
+///   A column left out gets no label, which is right for an actions column: the buttons say what
+///   they do.
+@mixin labels($labels) {
+  @media (max-width: $breakpoint) {
+    @each $column, $label in $labels {
+      .cdk-column-#{$column}::before {
+        content: '#{$label}';
+      }
+    }
+  }
+}
+
+/// For a grid that genuinely cannot stack — a rota is waiters × days, and a day out of its column
+/// means nothing — scrolling sideways is the honest answer. The scroll lives on the grid rather
+/// than on the page, so the two axes never fight.
+@mixin scroll-below($min-width: 720px) {
+  @media (max-width: $breakpoint) {
+    overflow-x: auto;
+
+    // Enough width that the columns stay readable rather than crushing to nothing.
+    > * {
+      min-width: $min-width;
+    }
+  }
+}

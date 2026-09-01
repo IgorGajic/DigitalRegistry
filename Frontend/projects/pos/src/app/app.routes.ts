@@ -38,6 +38,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/order/order.page').then((m) => m.OrderPage),
       },
       {
+        // Every member of staff: reprinting a bill is ordinary service, and reversing one is gated
+        // inside the screen rather than at the door.
+        path: 'racuni',
+        loadComponent: () => import('./features/bills/bills.page').then((m) => m.BillsPage),
+      },
+      {
         path: 'rezervacije',
         loadComponent: () =>
           import('./features/reservations/reservations.page').then((m) => m.ReservationsPage),

@@ -8,6 +8,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
@@ -19,11 +20,14 @@ import {
   LicensePaymentDto,
   LicensePlan,
   LicenseStatus,
+  LoadingState,
   PaymentMethod,
   PlatformApiService,
   PromptDialog,
   PromptDialogData,
   RestaurantSummaryDto,
+  accountsLabel,
+  daysLabel,
   licensePlanLabels,
   licenseStatusLabels,
   paymentMethodLabels,
@@ -50,10 +54,15 @@ import {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatProgressBarModule,
     MatSelectModule,
     MatTableModule,
   ],
   template: `
+    @if (loading.active()) {
+      <mat-progress-bar mode="indeterminate" />
+    }
+
     <div class="dr-page">
       @if (restaurant(); as venue) {
         <header class="det__header">
@@ -153,7 +162,9 @@ import {
                     <dt>Ističe</dt>
                     <dd>
                       {{ current.expiresAtUtc | date: 'dd.MM.yyyy.' }}
-                      <span class="dr-muted">({{ current.daysRemaining }} dana)</span>
+                      <span class="dr-muted">
+                        ({{ current.daysRemaining }} {{ daysLabel(current.daysRemaining) }})
+                      </span>
                     </dd>
                     <dt>Cena</dt>
                     <dd>{{ current.price | currency: 'RSD' : 'symbol-narrow' : '1.0-0' }}</dd>
@@ -244,7 +255,7 @@ import {
               @if (venue.staffCount > 0) {
                 <p>
                   <mat-icon class="det__ok" inline>check_circle</mat-icon>
-                  Restoran ima {{ venue.staffCount }} nalog(a).
+                  Restoran ima {{ venue.staffCount }} {{ accountsLabel(venue.staffCount) }}.
                 </p>
               } @else {
                 <div class="det__owner">
@@ -342,10 +353,17 @@ import {
             </mat-card-content>
           </mat-card>
         }
+      } @else if (!loading.active()) {
+        <div class="dr-empty">
+          <p>Restoran nije pronađen.</p>
+          <a mat-stroked-button routerLink="/restorani">Nazad na spisak</a>
+        </div>
       }
     </div>
   `,
   styles: `
+    @use 'responsive-table' as rt;
+
     .det__header {
       display: flex;
       align-items: center;
@@ -454,6 +472,26 @@ import {
         grid-template-columns: 1fr;
       }
     }
+
+    @include rt.labels((
+      date: 'Datum',
+      amount: 'Iznos',
+      method: 'Način',
+      reference: 'Poziv na broj',
+    ));
+
+    @media (max-width: 900px) {
+      .det__edit form,
+      .det__owner {
+        grid-template-columns: 1fr;
+      }
+
+      /* Licence and payment controls are a row of narrow fields; they wrap to full width. */
+      .det__license-actions mat-form-field,
+      .det__payment-form mat-form-field {
+        width: 100%;
+      }
+    }
   `,
 })
 export class RestaurantDetailPage {
@@ -463,7 +501,10 @@ export class RestaurantDetailPage {
   private readonly snackBar = inject(MatSnackBar);
   private readonly dialog = inject(MatDialog);
 
+  protected readonly loading = new LoadingState();
   protected readonly LicenseStatus = LicenseStatus;
+  protected readonly daysLabel = daysLabel;
+  protected readonly accountsLabel = accountsLabel;
   protected readonly plans = [
     LicensePlan.Monthly,
     LicensePlan.Quarterly,
@@ -566,7 +607,40 @@ export class RestaurantDetailPage {
       });
   }
 
+  /**
+   * Switches the whole venue off, or back on.
+   *
+   * Only switching off asks. This is the widest single action on the platform: every account in the
+   * restaurant stops being able to sign in, mid-service, and the administrator clicking it is not
+   * the person who finds out. Switching back on takes nothing away.
+   */
   protected setActive(active: boolean): void {
+    if (active) {
+      this.apply(true);
+      return;
+    }
+
+    const data: ConfirmDialogData = {
+      title: `Ugasiti „${this.restaurant()?.name ?? 'restoran'}“?`,
+      message:
+        'Nijedan zaposleni ovog restorana više ne može da se prijavi — ni vlasnik. '
+        + 'Otvoreni računi ostaju u bazi, ali se do njih ne dolazi dok se restoran ne uključi. '
+        + 'Licenca se ovim ne dira.',
+      confirmText: 'Ugasi restoran',
+      destructive: true,
+    };
+
+    this.dialog
+      .open(ConfirmDialog, { data })
+      .afterClosed()
+      .subscribe((confirmed: boolean | undefined) => {
+        if (confirmed) {
+          this.apply(false);
+        }
+      });
+  }
+
+  private apply(active: boolean): void {
     this.api.setRestaurantActive(this.id(), active).subscribe((venue) => {
       this.restaurant.set(venue);
       this.snackBar.open(active ? 'Restoran je uključen.' : 'Restoran je ugašen.', 'U redu', {
@@ -683,12 +757,12 @@ export class RestaurantDetailPage {
   }
 
   private load(): void {
-    this.api.restaurant(this.id()).subscribe((venue) => {
+    this.loading.track(this.api.restaurant(this.id())).subscribe((venue) => {
       this.restaurant.set(venue);
       this.price = venue.plan ? this.price : 15000;
     });
 
-    this.api.licenses(this.id()).subscribe((rows) => {
+    this.loading.track(this.api.licenses(this.id())).subscribe((rows) => {
       this.licenses.set(rows);
 
       const current = rows[0];
@@ -696,7 +770,9 @@ export class RestaurantDetailPage {
       if (current) {
         this.plan = current.plan;
         this.price = current.price;
-        this.api.licensePayments(current.id).subscribe((paid) => this.payments.set(paid));
+        this.loading
+          .track(this.api.licensePayments(current.id))
+          .subscribe((paid) => this.payments.set(paid));
       } else {
         this.payments.set([]);
       }
