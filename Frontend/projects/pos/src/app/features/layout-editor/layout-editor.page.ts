@@ -49,6 +49,7 @@ interface Placed {
   width: number;
   height: number;
   shape: TableShape;
+  rotation: number;
 }
 
 /**
@@ -192,6 +193,7 @@ interface PlacedFixture {
                 [style.top.%]="percent(item.y, current.canvasHeight)"
                 [style.width.%]="percent(item.width, current.canvasWidth)"
                 [style.height.%]="percent(item.height, current.canvasHeight)"
+                [style.transform]="'rotate(' + item.rotation + 'deg)'"
                 (click)="selectTable(item.table.id)"
               >
                 <span class="ed__number">{{ item.table.tableNumber }}</span>
@@ -329,6 +331,23 @@ interface PlacedFixture {
                       (valueChange)="setHeight(item, $event)"
                     />
                   </mat-slider>
+
+                  @if (item.shape !== TableShape.Round) {
+                    <div class="ed__rotate">
+                      <button mat-stroked-button (click)="rotateTable(item, -45)">
+                        <mat-icon>rotate_left</mat-icon>
+                        45°
+                      </button>
+                      <button mat-stroked-button (click)="rotateTable(item, 45)">
+                        <mat-icon>rotate_right</mat-icon>
+                        45°
+                      </button>
+                    </div>
+
+                    @if (item.rotation) {
+                      <p class="dr-muted ed__rotation">Zaokrenut {{ item.rotation }}°</p>
+                    }
+                  }
 
                   <button mat-stroked-button (click)="editTable(item)">
                     <mat-icon>edit</mat-icon>
@@ -859,6 +878,19 @@ export class LayoutEditorPage {
   }
 
   /**
+   * Turns a table by a step, left or right.
+   *
+   * Offered on every shape but the round one: a circle is the same circle at any angle, while a
+   * square turned 45° is a diamond and reads as one on the floor.
+   *
+   * The angle was stored and drawn on the floor screen from the start, but nothing could set it —
+   * the editor read it off the server and wrote the same value back untouched.
+   */
+  protected rotateTable(item: Placed, degrees: number): void {
+    this.update(item, { rotation: (item.rotation + degrees + 360) % 360 });
+  }
+
+  /**
    * Turns a fixture by a step, left or right.
    *
    * Offered only on rectangles, because that is the only shape a turn changes: an ellipse of equal
@@ -900,7 +932,7 @@ export class LayoutEditorPage {
   protected place(table: FloorPlanTableDto): void {
     this.placed.update((items) => [
       ...items,
-      { table, x: 40, y: 40, width: 80, height: 80, shape: TableShape.Round },
+      { table, x: 40, y: 40, width: 80, height: 80, shape: TableShape.Round, rotation: 0 },
     ]);
     this.unplaced.update((items) => items.filter((candidate) => candidate.id !== table.id));
     this.selectedId.set(table.id);
@@ -1161,7 +1193,7 @@ export class LayoutEditorPage {
       width: item.width,
       height: item.height,
       shape: item.shape,
-      rotation: item.table.rotation,
+      rotation: item.rotation,
     }));
 
     const fixtures: FixtureLayoutRequest[] = this.fixtures().map((item, index) => ({
@@ -1232,6 +1264,7 @@ export class LayoutEditorPage {
         width: table.width,
         height: table.height,
         shape: table.shape,
+        rotation: table.rotation,
       })),
     );
 

@@ -18,6 +18,7 @@ import {
   ReservationDto,
   ReservationScheduleEntryDto,
   RoomDto,
+  ServiceTicketDto,
   ShiftAssignmentDto,
   ShiftTemplateDto,
   StaffMemberDto,
@@ -87,6 +88,23 @@ export class TillApiService {
 
   deleteRoom(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/api/floor-plan/rooms/${id}`);
+  }
+
+  /**
+   * What guests have ordered from their phones and nobody has carried out yet, oldest first.
+   */
+  serviceQueue(): Observable<ServiceTicketDto[]> {
+    return this.http.get<ServiceTicketDto[]>(`${this.base}/api/orders/service-queue`);
+  }
+
+  /**
+   * Takes a round off the queue.
+   *
+   * Does not close the tab: the table stays occupied and still owes what it owes. This records that
+   * the drinks reached it, nothing more.
+   */
+  markOrderServed(orderId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/api/orders/${orderId}/served`, {});
   }
 
   /**

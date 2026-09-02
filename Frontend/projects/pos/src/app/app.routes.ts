@@ -76,6 +76,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/reports/reports.page').then((m) => m.ReportsPage),
       },
       {
+        path: 'podesavanja',
+        canActivate: [roleGuard(UserRole.Owner)],
+        loadComponent: () =>
+          import('./features/settings/settings.page').then((m) => m.SettingsPage),
+      },
+      {
         path: 'zaposleni',
         canActivate: [roleGuard(UserRole.Owner)],
         loadComponent: () => import('./features/staff/staff.page').then((m) => m.StaffPage),

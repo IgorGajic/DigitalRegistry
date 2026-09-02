@@ -187,8 +187,12 @@ Tri stvari tražene kad je Faza A već bila na ekranu — ono što se vidi tek k
       zaokrenut element blizu ivice može biti odsečen — platno ima `overflow: hidden`. Vlasnik to
       vidi odmah u editoru i pomeri ga; računanje zaokrenutog okvira ne plaća se za ovo.
 
-      **Nije rađeno:** stolovi imaju isto polje `Rotation` i `/sala` ga već iscrtava, ali kontrole
-      nemaju. Traženo je za elemente; iste dve dugmadi na stolu su jedan potez ako zatreba.
+- [x] **Ista rotacija i na stolu**, na traženje. Ponuđena za sve oblike osim okruglog: krug je isti
+      pod svakim uglom, a kvadrat zaokrenut 45° je romb i tako se i čita na sali.
+
+      Uz put se videlo da je ugao stola **bio čuvan i iscrtavan od početka, ali ga ništa nije moglo
+      postaviti** — editor ga je čitao sa servera i vraćao netaknut, a `Placed` ga uopšte nije nosio.
+      Sada ga nosi, editor ga i iscrtava, pa se u editoru vidi ono što je na sali.
 
 ---
 
@@ -198,41 +202,41 @@ Kod je mali deo posla. Pravi posao su boje — i to je tačno ono što je `BUGS.
 odbila („tražila bi drugu paletu za stanja stolova i drugu proveru grafikona, i nije besplatna").
 Sada se ta cena plaća namerno, pa neka bude vidljiva u zadacima.
 
-- [ ] **B1 — Preduslov: boje grafikona iz koda u promenljive.** `turnover-chart.ts` ima tri zakucana
+- [x] **B1 — Preduslov: boje grafikona iz koda u promenljive.** `turnover-chart.ts` ima tri zakucana
       heksa (`#C07C2E`, `#00949C`, `#7B52A8`) za pojas načina plaćanja. Dok su u TS-u, tema ih ne
       može dodirnuti. Izmestiti u CSS promenljive.
 
       `bar-chart.ts` je već na `--mat-sys-*` tokenima i ne dira se.
 
-- [ ] **B2 — Domen.** `AppTheme` enum (`Petrol = 1`, `Charcoal = 2`, `Forest = 3`, `Sand = 4`) i
+- [x] **B2 — Domen.** `AppTheme` enum (`Petrol = 1`, `Charcoal = 2`, `Forest = 3`, `Sand = 4`) i
       `Restaurant.Theme` sa podrazumevanim `Petrol`.
 
-- [ ] **B3 — Baza.** `RestaurantConfiguration` dopuna, migracija `AddRestaurantTheme`.
+- [x] **B3 — Baza.** `RestaurantConfiguration` dopuna, migracija `AddRestaurantTheme`.
 
-- [ ] **B4 — Application.** `RestaurantSettingsDto`, `GetRestaurantSettingsQuery`,
+- [x] **B4 — Application.** `RestaurantSettingsDto`, `GetRestaurantSettingsQuery`,
       `UpdateRestaurantThemeCommand` + validator. Nova politika `ManageRestaurantSettings` = Vlasnik
       u `AuthorizationPolicies`.
 
       Nova politika, a ne `ManageStaff`: ta je opisana kao „politika koja odlučuje ko uopšte može
       da priđe bilo čemu", i tema pod njom bi je razvodnila.
 
-- [ ] **B5 — API.** `SettingsController`: `GET /api/settings` čita svako prijavljeno osoblje
+- [x] **B5 — API.** `SettingsController`: `GET /api/settings` čita svako prijavljeno osoblje
       (konobaru treba tema kao i vlasniku), `PUT /api/settings/theme` samo vlasnik.
 
-- [ ] **B6 — Testovi.** Integracioni: tema se snimi i pročita; konobar dobija **403** na upis a
+- [x] **B6 — Testovi.** Integracioni: tema se snimi i pročita; konobar dobija **403** na upis a
       **200** na čitanje; nepoznata vrednost daje 400.
 
-- [ ] **B7 — `shared/theme`.** `ThemeService`: postavlja `data-dr-theme` na `<html>`, pamti poslednju
+- [x] **B7 — `shared/theme`.** `ThemeService`: postavlja `data-dr-theme` na `<html>`, pamti poslednju
       temu u `localStorage` i primenjuje je odmah pri podizanju, pa je ispravlja odgovorom sa
       `GET /api/settings`. Odjava briše zapamćenu temu.
 
-- [ ] **B8 — Tokeni po temi.** Blokovi `:root[data-dr-theme="..."]` u `pos/src/styles.scss` za sve
+- [x] **B8 — Tokeni po temi.** Blokovi `:root[data-dr-theme="..."]` u `pos/src/styles.scss` za sve
       četiri teme. Svaki blok pokriva: M3 površine, `color-scheme`, **četiri para statusnih boja**,
       tonove elemenata iz A9, i boje pojasa iz B1.
 
       Podrazumevana tema ostaje na golom `:root`, kao što je sada.
 
-- [ ] **B9 — Provera boja.** Najskuplji zadatak i jedini koji se ne može otaljati.
+- [x] **B9 — Provera boja.** Najskuplji zadatak i jedini koji se ne može otaljati.
       Za svaku temu: četiri statusne boje moraju biti razdvojive međusobno i čitljive na svojoj
       podlozi, a paleta grafikona se ponovo provlači kroz validator iz `dataviz` skilla (opseg
       svetline, prag hrome, razdvojenost za daltonizam, kontrast prema površini).
@@ -240,21 +244,54 @@ Sada se ta cena plaća namerno, pa neka bude vidljiva u zadacima.
       Pastelne `-bg` vrednosti (`#e8f5e9` i ostale) su računate za svetlu podlogu i na tamnoj se
       **ne vide** — tamnim temama treba sopstveni par, ne posvetljena ista vrednost.
 
-- [ ] **B10 — Ekran za izbor.** Ruta `/podesavanja`, samo za vlasnika, sa stavkom u meniju.
+- [x] **B10 — Ekran za izbor.** Ruta `/podesavanja`, samo za vlasnika, sa stavkom u meniju.
       Izbor teme sa pregledom uživo (uključujući mustru sa četiri statusa stolova, jer se tema bira
       zbog njih). Ovo je i mesto gde buduća podešavanja mogu da sednu.
 
-- [ ] **B11 — Štampa.** Otisak računa i list QR kodova ostaju crno na belom bez obzira na temu.
+- [x] **B11 — Štampa.** Otisak računa i list QR kodova ostaju crno na belom bez obzira na temu.
       Postojeći `@media print` blok već tera `#fff` na površinu dijaloga — proveriti da to važi i
       za tekst i za obe tamne teme.
 
-- [ ] **B12 — Testovi.** `theme.service.spec.ts`: primena atributa, pamćenje i čitanje iz
+- [x] **B12 — Testovi.** `theme.service.spec.ts`: primena atributa, pamćenje i čitanje iz
       `localStorage`, ponašanje kad je zapamćena vrednost besmislena, i brisanje na odjavi.
 
-- [ ] **B13 — Živa provera.** Svaka tema kroz `/sala` (četiri statusa istovremeno), `/izvestaji`
+- [x] **B13 — Živa provera.** Svaka tema kroz `/sala` (četiri statusa istovremeno), `/izvestaji`
       (grafikon i pojas) i otisak računa. Zabeležiti u `Frontend/BUGS.md`.
 
-**Provera na kraju faze:** kao za Fazu A, plus `dotnet test` zbog nove politike.
+**Provera na kraju faze — prošla.** Sva tri projekta se grade bez upozorenja; **221** backend test
+(bilo 215) i **94** frontend (59 `shared` + 35 `pos`; bilo 88). Sve četiri teme prokliktane kroz
+`/podesavanja`, `/sala` i `/izvestaji`.
+
+> **Material sam prevrće paletu.** Ispostavilo se da svaki `--mat-sys-*` token izlazi kao
+> `light-dark(svetlo, tamno)`, pa `color-scheme: dark` na korenu prevrne ceo okvir bez ijedne
+> prepisane vrednosti. Ugalj zato **nema nijedno prepisivanje površine** — tamna polovina petrolej
+> palete je već ugljeno crna. Šumska i Pesak pomeraju samo tlo.
+
+> **Migracija je zamalo upisala nevažeću vrednost.** EF je za novu kolonu stavio `defaultValue: 0`,
+> a `AppTheme` počinje od 1 — svih sedam postojećih restorana dobilo bi temu koja ne postoji.
+> Uhvaćeno čitanjem generisane migracije pre nego što je ostala. Vraćeno, `HasDefaultValue` upisan
+> u konfiguraciju, migracija regenerisana, i provereno u bazi: svih sedam ima 1.
+> *(Pri regenerisanju je snapshot zadržao kolonu pa je nastao `AlterColumn` umesto `AddColumn` —
+> snapshot se mora vratiti zajedno sa fajlovima migracije, ili se koristi `migrations remove`.)*
+
+### Šta je provera boja (B9) stvarno našla
+
+Merenjem, ne okom — kontrast i RGB razdvojenost za svaku temu.
+
+- **Zatečena greška u podrazumevanoj temi.** „Rezervisan" je bio `#ef6c00` na `#fff3e0`: kontrast
+  **2,81:1**, ispod svakog praga. Uz to su mu pozadina i pozadina „zauzet" bile **16 jedinica** RGB
+  jedna od druge — dva pastela koja se praktično ne razlikuju.
+  Novo: `#a84e00` na `#ffdfb8` — **4,39:1**, razdvojenost pozadina **55**. Oba se popravljaju
+  istovremeno jer tamnjenje narandžaste ide ka braon, dakle *dalje* od crvene, a ne bliže.
+- **Istu grešku sam napravio u tamnim temama** koje sam upravo napisao: `#3a2a10` je bio 17 jedinica
+  od `#3b1a17`. Ispravljeno na `#4d4016` — razdvojenost 42 od „zauzet", 57 od „slobodan", uz
+  kontrast 6,2:1.
+- **Konačno stanje:** kontrast stanja prema sopstvenoj pozadini je 4,2–4,9 u svetlim temama i
+  7,6–8,5 u tamnim; tekst na podlozi 11,5–15,5; pojas naplate 3,1–8,7 uz razdvojenost ≥ 116.
+
+> **Nije provereno kroz pravu štampu.** Pravila (`color-scheme: light !important`, belo/crno na
+> `body` i otisku) potvrđena su u CSSOM-u, ali dijalog štampe blokira sesiju pa nije otvaran.
+> Ostaje da se jednom pogleda kroz pravi print preview na tamnoj temi.
 
 ---
 
@@ -263,6 +300,12 @@ Sada se ta cena plaća namerno, pa neka bude vidljiva u zadacima.
 - **Slobodan birač boje**, i za elemente i za temu — vidi odluke gore.
 - **Tema po korisniku.** Vlasnik bira za lokal; ako konobar želi svoju, to je druga funkcionalnost
   sa drugim mestom čuvanja.
+- **Brend hrom ostaje petrolej u svim temama.** Traženo je tlo, ne brend; petrolej je uz to biran da
+  stoji daleko od sva četiri statusna tona, pa ga menjati po temi znači ponavljati tu proveru.
+
+**Odstupanje od plana:** plan je govorio da odjava briše zapamćenu temu. Ne briše je — keš je samo
+pretpostavka za prvo iscrtavanje i odgovor servera ga uvek nadjača, a brisanje bi vratilo bljesak
+boje pri svakoj prijavi na tabletu koji ceo život stoji u istom lokalu.
 - **Master aplikacija ne dobija izbor teme.** Ona je administracija platforme i njena šljiva postoji
   baš zato da se ne pomeša sa kasom.
 - **Elementi ne ulaze u izveštaje ni u rezervacije.** Oni su crtež, ne inventar.

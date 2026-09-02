@@ -107,6 +107,27 @@ public static class AuthorizationPolicies
     /// </remarks>
     public const string ManageReservationDesk = nameof(ManageReservationDesk);
 
+    /// <summary>
+    /// Change how the venue's till presents itself — at present, which palette it is painted in.
+    /// </summary>
+    /// <remarks>
+    /// Owner only, and its own policy rather than a second job for <see cref="ManageStaff"/>: that
+    /// one is described as deciding who may reach anything at all, and hanging a preference off it
+    /// would blur what it means. Reading the setting needs no policy at all — every member of staff
+    /// has to know which colours to draw.
+    /// </remarks>
+    public const string ManageRestaurantSettings = nameof(ManageRestaurantSettings);
+
+    /// <summary>
+    /// Mark an order as carried to its table.
+    /// </summary>
+    /// <remarks>
+    /// Front-of-house work, so it includes the manager — unlike <see cref="ModifyOrder"/>, which is
+    /// about what a tab contains and what it costs. Running a tray is not changing a bill, and a
+    /// manager crossing the floor with a drink should not have to find a waiter to tick it off.
+    /// </remarks>
+    public const string ServeOrder = nameof(ServeOrder);
+
     private static readonly Dictionary<string, UserRole[]> Matrix = new()
     {
         [ViewMenu] = [UserRole.Guest, UserRole.Waiter, UserRole.Manager, UserRole.Owner],
@@ -126,6 +147,8 @@ public static class AuthorizationPolicies
         [ManageInventory] = [UserRole.Manager, UserRole.Owner],
         [FinancialReports] = [UserRole.Owner],
         [ManageStaff] = [UserRole.Owner],
+        [ManageRestaurantSettings] = [UserRole.Owner],
+        [ServeOrder] = [UserRole.Waiter, UserRole.Manager, UserRole.Owner],
         [ManageReservationDesk] = [UserRole.Waiter, UserRole.Manager, UserRole.Owner]
     };
 

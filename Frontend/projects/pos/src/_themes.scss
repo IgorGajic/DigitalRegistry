@@ -1,0 +1,143 @@
+// The palettes a venue may paint its till in.
+//
+// Angular Material emits every system token as `light-dark(light, dark)`, so a theme does not have
+// to restate the framework's colours — setting `color-scheme` picks the half already generated from
+// the petrol palette. What each theme here does is move the *ground* the application stands on, and
+// then restate the things that have to stay readable against it.
+//
+// Those things are not decoration:
+//
+//   * The four table states. On the floor screen colour IS the message — a waiter crossing the room
+//     never reads "Zauzet", they see red — so each theme states its own four pairs. The light
+//     pastels (#e8f5e9 and the rest) are computed for a white ground and are simply invisible on a
+//     dark one; a dark theme needs its own, not a dimmed copy.
+//   * The takings band on the reports screen, whose three colours were chosen for separation from
+//     each other and contrast against the surface. Move the surface and that check has to be redone.
+//   * The room fixtures, which have to recede behind the tables without disappearing.
+//
+// The brand chrome stays petrol in every theme. It is the identity, it sits far from all four state
+// hues by construction, and what was asked for was the ground, not the brand.
+
+/// Everything the two dark themes say the same way.
+///
+/// Charcoal and Forest differ only in the ground they stand on; what has to be legible against a
+/// dark ground is legible against both, and stating it twice would be two things to keep in step.
+@mixin dark-signals {
+  // Table states. Lifted and desaturated from the light set: on a dark ground a saturated hue at
+  // full strength glares, and these are looked at all shift.
+  --dr-free: #7ddc84;
+  --dr-free-bg: #16301b;
+  --dr-occupied: #ff9a8f;
+  --dr-occupied-bg: #3b1a17;
+  --dr-reserved: #ffbe62;
+  // Lifted well clear of the occupied fill. At the obvious value (#3a2a10) the two dark fills were
+  // 17 units of RGB apart — the same trap the light themes had, where reserved and occupied read as
+  // one colour until you looked twice. This is 42 from occupied and 57 from free, and still 6.2:1
+  // behind its own text.
+  --dr-reserved-bg: #4d4016;
+  --dr-out-of-service: #b0b6b6;
+  --dr-out-of-service-bg: #2b2e2e;
+
+  // The takings band, re-picked against a dark surface. Same three hues, raised in lightness until
+  // each clears the ground and they still part from one another.
+  --dr-pay-cash: #e0a35c;
+  --dr-pay-card: #4fc9d1;
+  --dr-pay-wallet: #b18cd9;
+
+  // Fixtures. Dark fills with a lighter line, which is the inverse of the light themes and the only
+  // way a landmark reads as built rather than as a hole in the floor.
+  --dr-tone-ink: #dfe3e3;
+
+  --dr-tone-wood: #4a3a28;
+  --dr-tone-wood-line: #7a6144;
+
+  --dr-tone-slate: #2f3538;
+  --dr-tone-slate-line: #565f64;
+
+  --dr-tone-stone: #3a3a37;
+  --dr-tone-stone-line: #5d5d58;
+
+  --dr-tone-glass: #26383f;
+  --dr-tone-glass-line: #4b6a76;
+}
+
+/// Charcoal — the plain dark one.
+///
+/// No surface overrides at all. The dark half of the petrol palette is already a near-black with a
+/// trace of teal in it, which is exactly the charcoal that was asked for; restating it by hand would
+/// only be a second set of numbers to drift from the first.
+:root[data-dr-theme='charcoal'] {
+  color-scheme: dark;
+
+  @include dark-signals;
+}
+
+/// Forest — deep green, dark.
+///
+/// The one theme that moves the ground rather than picking a half. Green is close enough to the
+/// "free" state that the surface is held well below it in both lightness and chroma: a room whose
+/// walls are the same green as its empty tables is a room where the empty tables stop showing.
+:root[data-dr-theme='forest'] {
+  color-scheme: dark;
+
+  @include dark-signals;
+
+  --mat-sys-background: #0d1711;
+  --mat-sys-surface: #101a14;
+  --mat-sys-surface-dim: #0b1410;
+  --mat-sys-surface-bright: #2c3a32;
+  --mat-sys-surface-container-lowest: #08110c;
+  --mat-sys-surface-container-low: #16211a;
+  --mat-sys-surface-container: #1b2720;
+  --mat-sys-surface-container-high: #223028;
+  --mat-sys-surface-container-highest: #2a382f;
+  --mat-sys-surface-variant: #3a4a41;
+
+  --mat-sys-on-surface: #e2e8e3;
+  --mat-sys-on-surface-variant: #b6c2b9;
+  --mat-sys-outline: #7d8a82;
+  --mat-sys-outline-variant: #3b4a41;
+}
+
+/// Sand — warm, and light.
+///
+/// Deliberately not the dark brown the warm option would suggest. Occupied is red and reserved is
+/// orange, the two hues nearest brown in the application, and a dark brown ground is the one surface
+/// on which they begin to read as part of the furniture rather than as a table asking for something.
+/// Light sand gives the same warmth and keeps them separate.
+:root[data-dr-theme='sand'] {
+  color-scheme: light;
+
+  --mat-sys-background: #f6efe3;
+  --mat-sys-surface: #fbf6ee;
+  --mat-sys-surface-dim: #e3d9c8;
+  --mat-sys-surface-bright: #fdf9f3;
+  --mat-sys-surface-container-lowest: #ffffff;
+  --mat-sys-surface-container-low: #f6efe3;
+  --mat-sys-surface-container: #f1e8d9;
+  --mat-sys-surface-container-high: #ebe1d0;
+  --mat-sys-surface-container-highest: #e5dac6;
+  --mat-sys-surface-variant: #e7ddcc;
+
+  --mat-sys-on-surface: #33302a;
+  --mat-sys-on-surface-variant: #5f594e;
+  --mat-sys-outline: #8b8375;
+  --mat-sys-outline-variant: #ddd0bb;
+
+  // The state colours keep their hues — those are the working vocabulary and do not change with the
+  // wallpaper — but their pale backgrounds are warmed, because a cold mint pastel on a sand ground
+  // reads as a mistake rather than as a state.
+  --dr-free-bg: #e2f0dd;
+  --dr-occupied-bg: #fbe4de;
+  --dr-reserved-bg: #f9dbb2;
+  --dr-out-of-service-bg: #eae3d6;
+
+  // Fixtures warmed to match, and the neutrals given a trace of the ground so they sit in the room
+  // rather than on top of it.
+  --dr-tone-slate: #cfd0cd;
+  --dr-tone-slate-line: #7d8180;
+  --dr-tone-stone: #e6dfd2;
+  --dr-tone-stone-line: #b8ad99;
+  --dr-tone-glass: #d9e6e6;
+  --dr-tone-glass-line: #93b0b0;
+}

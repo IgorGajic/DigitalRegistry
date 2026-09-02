@@ -5,6 +5,7 @@
  * application cannot drift apart on what a licence or a restaurant looks like.
  */
 import {
+  AppTheme,
   FixtureKind,
   FixtureShape,
   FixtureTone,
@@ -128,6 +129,33 @@ export interface FixtureLayoutRequest {
   height: number;
   rotation: number;
   displayOrder: number;
+}
+
+/**
+ * One round waiting to be carried out to a table.
+ *
+ * `roomName` is null for a table nobody has drawn on a floor plan yet. It still takes orders, and a
+ * waiter still has to find it, so the ticket gives the number and stays quiet about the room.
+ */
+export interface ServiceTicketDto {
+  id: string;
+  tableId: string;
+  tableNumber: number;
+  roomName: string | null;
+  placedAtUtc: string;
+  items: ServiceTicketLineDto[];
+}
+
+/** What is on the tray. Deliberately unpriced: money belongs to the bill, not to the carrying. */
+export interface ServiceTicketLineDto {
+  menuItemName: string;
+  quantity: number;
+}
+
+/** How a venue's till presents itself. Read by every member of staff, set only by the owner. */
+export interface RestaurantSettingsDto {
+  restaurantName: string;
+  theme: AppTheme;
 }
 
 export interface TableDto {

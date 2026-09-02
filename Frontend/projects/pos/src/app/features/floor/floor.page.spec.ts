@@ -90,17 +90,21 @@ describe('FloorPage', () => {
   let fixture: ComponentFixture<FloorPage>;
   let page: FloorPage & Record<string, unknown>;
   let floorPlan: ReturnType<typeof vi.fn>;
+  let serviceQueue: ReturnType<typeof vi.fn>;
+  let markOrderServed: ReturnType<typeof vi.fn>;
   let lastEvent: ReturnType<typeof signal<unknown>>;
 
   beforeEach(async () => {
     floorPlan = vi.fn().mockReturnValue(of(emptyPlan));
+    serviceQueue = vi.fn().mockReturnValue(of([]));
+    markOrderServed = vi.fn().mockReturnValue(of(undefined));
     lastEvent = signal<unknown>(null);
 
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         provideNoopAnimations(),
-        { provide: TillApiService, useValue: { floorPlan } },
+        { provide: TillApiService, useValue: { floorPlan, serviceQueue, markOrderServed } },
         { provide: RealtimeService, useValue: { lastEvent, connected: signal(true) } },
         { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
       ],
@@ -230,6 +234,89 @@ describe('FloorPage', () => {
     // Both are absolutely positioned with no z-index, so document order is the stacking order: a
     // bar painted after a table would cover the amount that table owes.
     expect(drawn.indexOf('floor__fixture')).toBeLessThan(drawn.indexOf('floor__table'));
+  });
+
+  // ------------------------------------------------------------------ the runner's queue
+  //
+  // A round ordered from a phone has nobody attached to it. Unless it is written down somewhere it
+  // waits until a member of staff happens to walk past the table.
+
+  function ticket(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'o1',
+      tableId: 't1',
+      tableNumber: 7,
+      roomName: 'Bašta',
+      placedAtUtc: new Date().toISOString(),
+      items: [{ menuItemName: 'Espresso', quantity: 2 }],
+      ...overrides,
+    };
+  }
+
+  it('shows what was ordered, and where to take it', async () => {
+    floorPlan.mockReturnValue(of(planWith([])));
+    serviceQueue.mockReturnValue(of([ticket()]));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    const card = fixture.nativeElement.querySelector('.floor__ticket') as HTMLElement;
+
+    expect(card.textContent).toContain('Sto 7');
+    expect(card.textContent).toContain('Bašta');
+    expect(card.textContent).toContain('Espresso');
+    expect(card.textContent).toContain('2×');
+  });
+
+  it('takes the card away the moment it is pressed, without waiting for the round trip', async () => {
+    serviceQueue.mockReturnValue(of([ticket({ id: 'o1' }), ticket({ id: 'o2', tableNumber: 9 })]));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    expect((page['queue'] as () => unknown[])()).toHaveLength(2);
+
+    // The waiter is holding a tray and has already moved on; the card must not linger while a
+    // request completes.
+    (page['markServed'] as (t: unknown) => void)(ticket({ id: 'o1' }));
+
+    expect(markOrderServed).toHaveBeenCalledWith('o1');
+    expect((page['queue'] as () => { id: string }[])().map((t) => t.id)).toEqual(['o2']);
+  });
+
+  it('puts the card back when marking it served fails', async () => {
+    serviceQueue.mockReturnValue(of([ticket()]));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    markOrderServed.mockReturnValue(
+      new (await import('rxjs')).Observable((subscriber) => subscriber.error(new Error('offline'))),
+    );
+
+    (page['markServed'] as (t: unknown) => void)(ticket());
+    await fixture.whenStable();
+
+    // A card that vanished on a failure is a drink nobody carries. The reload restores the truth.
+    expect((page['queue'] as () => unknown[])()).toHaveLength(1);
+  });
+
+  it('names the table even when it sits in no room yet', async () => {
+    floorPlan.mockReturnValue(of(planWith([])));
+    serviceQueue.mockReturnValue(of([ticket({ roomName: null })]));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    const card = fixture.nativeElement.querySelector('.floor__ticket') as HTMLElement;
+
+    expect(card.textContent).toContain('Sto 7');
+    expect(card.querySelector('.floor__ticket-room')).toBeNull();
+  });
+
+  it('re-reads the queue on a hub event, so a phone order appears without anyone refreshing', async () => {
+    expect(serviceQueue).toHaveBeenCalledTimes(1);
+
+    lastEvent.set({ kind: 'guestQrOrderPlaced' });
+    await fixture.whenStable();
+
+    expect(serviceQueue).toHaveBeenCalledTimes(2);
   });
 
   it('stops loading when the plan cannot be fetched, so the screen is not stuck', async () => {

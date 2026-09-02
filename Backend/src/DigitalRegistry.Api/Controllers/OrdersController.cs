@@ -12,6 +12,8 @@ using DigitalRegistry.Application.Features.Orders.Queries.GetOrders;
 using DigitalRegistry.Application.Features.Orders.Queries.GetTableSessionOrders;
 using DigitalRegistry.Application.Features.Orders.Queries.GetReceipt;
 using DigitalRegistry.Application.Features.Orders;
+using DigitalRegistry.Application.Features.Orders.Commands.MarkOrderServed;
+using DigitalRegistry.Application.Features.Orders.Queries.GetServiceQueue;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -35,6 +37,35 @@ public class OrdersController : ApiControllerBase
         [FromQuery] GetOrdersQuery query,
         CancellationToken cancellationToken) =>
         ToActionResult(await Sender.Send(query, cancellationToken));
+
+    /// <summary>Rounds a guest ordered from their phone that nobody has carried out yet.</summary>
+    /// <remarks>
+    /// The floor screen's running list. Oldest first, because it is a queue: the table that has been
+    /// waiting longest is the one to serve next. Guest orders only — a waiter who took an order at
+    /// the table already knows about it.
+    /// </remarks>
+    /// <response code="200">What is waiting, oldest first.</response>
+    [HttpGet("service-queue")]
+    [Authorize(Policy = AuthorizationPolicies.ServeOrder)]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<ServiceTicketDto>))]
+    public async Task<ActionResult> GetServiceQueue(CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new GetServiceQueueQuery(), cancellationToken));
+
+    /// <summary>Records that a round has been carried out to its table.</summary>
+    /// <remarks>
+    /// Takes the round off the floor screen's queue. It does not close the tab or touch the money —
+    /// the table stays occupied and still owes what it owes until somebody takes payment.
+    /// </remarks>
+    /// <response code="204">Marked as served.</response>
+    /// <response code="404">No such order.</response>
+    /// <response code="409">The order had already moved on — paid, cancelled or served.</response>
+    [HttpPost("{id:guid}/served")]
+    [Authorize(Policy = AuthorizationPolicies.ServeOrder)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ProblemDetails))]
+    public async Task<ActionResult> MarkServed(Guid id, CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new MarkOrderServedCommand(id), cancellationToken));
 
     /// <summary>What the caller's own table has had so far, across every round still running.</summary>
     /// <remarks>

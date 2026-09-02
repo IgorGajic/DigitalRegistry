@@ -29,6 +29,19 @@ export enum TableShape {
 }
 
 /**
+ * The palette a venue's till is painted in.
+ *
+ * A closed list, not a colour picked freely: on the floor screen colour means status, and each
+ * theme has had those four hues checked against its own surface. Mirrors the API's enum.
+ */
+export enum AppTheme {
+  Petrol = 1,
+  Charcoal = 2,
+  Forest = 3,
+  Sand = 4,
+}
+
+/**
  * What a room fixture is — the things drawn on a floor plan that are not tables.
  *
  * The kind carries no rule. It seeds the label, size and tone the editor starts a new fixture with,

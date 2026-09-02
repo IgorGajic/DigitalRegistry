@@ -153,11 +153,13 @@ export class TurnoverChart {
    */
   readonly slices = computed<Slice[] | null>(() => {
     const parts: { method: PaymentMethod; amount: number; colour: string }[] = [
-      // A fixed order, assigned once. Validated against the light surface for lightness, chroma,
-      // colour-vision separation and contrast.
-      { method: PaymentMethod.Cash, amount: this.cash(), colour: '#C07C2E' },
-      { method: PaymentMethod.Card, amount: this.card(), colour: '#00949C' },
-      { method: PaymentMethod.DigitalWallet, amount: this.wallet(), colour: '#7B52A8' },
+      // A fixed order, assigned once, and named rather than given as values: the venue picks its
+      // own palette, and three hex codes compiled into this file could not follow it. Each theme
+      // restates them, having been put through the same check for lightness, chroma, colour-vision
+      // separation and contrast against its own surface.
+      { method: PaymentMethod.Cash, amount: this.cash(), colour: 'var(--dr-pay-cash)' },
+      { method: PaymentMethod.Card, amount: this.card(), colour: 'var(--dr-pay-card)' },
+      { method: PaymentMethod.DigitalWallet, amount: this.wallet(), colour: 'var(--dr-pay-wallet)' },
     ];
 
     if (parts.some((part) => part.amount < 0)) {

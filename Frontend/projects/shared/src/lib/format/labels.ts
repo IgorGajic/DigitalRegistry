@@ -1,4 +1,5 @@
 import {
+  AppTheme,
   FixtureKind,
   FixtureShape,
   FixtureTone,
@@ -63,6 +64,21 @@ export const voidTypeLabels: Record<VoidType, string> = {
   [VoidType.Item]: 'Stavka',
   [VoidType.OpenOrder]: 'Otvoren račun',
   [VoidType.PaidOrder]: 'Plaćen račun',
+};
+
+export const appThemeLabels: Record<AppTheme, string> = {
+  [AppTheme.Petrol]: 'Petrolej',
+  [AppTheme.Charcoal]: 'Ugalj',
+  [AppTheme.Forest]: 'Šumska',
+  [AppTheme.Sand]: 'Pesak',
+};
+
+/** A sentence each, so the owner is choosing a room to work in rather than a swatch. */
+export const appThemeDescriptions: Record<AppTheme, string> = {
+  [AppTheme.Petrol]: 'Svetla, petrolej-mastilo. Podrazumevana.',
+  [AppTheme.Charcoal]: 'Tamna, ugljeno siva. Za slabo osvetljen lokal.',
+  [AppTheme.Forest]: 'Tamna, duboko zelena.',
+  [AppTheme.Sand]: 'Svetla i topla, peščana.',
 };
 
 export const fixtureKindLabels: Record<FixtureKind, string> = {

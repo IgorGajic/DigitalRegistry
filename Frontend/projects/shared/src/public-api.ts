@@ -21,5 +21,7 @@ export * from './lib/http/messages';
 export * from './lib/api/till-api.service';
 export * from './lib/api/platform-api.service';
 
+export * from './lib/theme/theme.service';
+
 export * from './lib/format/labels';
 export * from './lib/format/dates';

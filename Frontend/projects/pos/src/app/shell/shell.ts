@@ -8,6 +8,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import {
   AuthService,
   LicenseStatusDto,
+  ThemeService,
   TillApiService,
   UserRole,
   daysLabel,
@@ -36,7 +37,7 @@ interface NavItem {
   ],
   template: `
     <mat-toolbar class="shell__bar dr-no-print">
-      <span class="shell__brand">DigitalRegistry</span>
+      <span class="shell__brand">{{ venue() }}</span>
 
       <nav class="shell__nav">
         @for (item of visibleNav(); track item.path) {
@@ -163,9 +164,26 @@ interface NavItem {
 export class Shell {
   protected readonly auth = inject(AuthService);
   protected readonly realtime = inject(RealtimeService);
+  private readonly theme = inject(ThemeService);
   private readonly api = inject(TillApiService);
 
   protected readonly license = signal<LicenseStatusDto | null>(null);
+
+  /**
+   * What the top-left corner says.
+   *
+   * The venue's own name rather than the product's. Whoever is looking at this screen knows what
+   * application they are in — they are standing in front of it for a whole shift — and what is
+   * worth a permanent corner is which restaurant this till belongs to.
+   *
+   * Falls back to the slug, which is on the token and therefore known the instant the session is,
+   * while the name has to be fetched. Not to the product name: that would put the word being
+   * replaced back on screen for exactly as long as one request, which is the flicker this avoids.
+   * The slug is what the person typed to get in, so it names the right venue either way.
+   */
+  protected readonly venue = computed(
+    () => this.license()?.restaurantName || this.auth.restaurantSlug(),
+  );
   protected readonly daysLabel = daysLabel;
 
   private readonly nav: NavItem[] = [
@@ -178,6 +196,7 @@ export class Shell {
     { path: '/raspored', label: 'Raspored', icon: 'dashboard_customize', roles: [UserRole.Owner] },
     { path: '/izvestaji', label: 'Izveštaji', icon: 'insights', roles: [UserRole.Owner] },
     { path: '/zaposleni', label: 'Zaposleni', icon: 'badge', roles: [UserRole.Owner] },
+    { path: '/podesavanja', label: 'Podešavanja', icon: 'palette', roles: [UserRole.Owner] },
   ];
 
   protected readonly visibleNav = computed(() => {
@@ -194,6 +213,10 @@ export class Shell {
 
   constructor() {
     void this.realtime.start();
+
+    // Whatever this device guessed at start-up, the venue's own answer settles it. Failure is
+    // deliberately silent: the guess is already on screen and a colour is not worth a snackbar.
+    this.theme.load().subscribe({ error: () => undefined });
 
     // The banner is the only warning an owner gets before the till stops working, so it is fetched
     // once on entry rather than being left to whichever screen happens to ask.

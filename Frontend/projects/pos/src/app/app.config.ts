@@ -1,5 +1,11 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
+import {
+  ApplicationConfig,
+  LOCALE_ID,
+  inject,
+  provideBrowserGlobalErrorListeners,
+  provideEnvironmentInitializer,
+} from '@angular/core';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { registerLocaleData } from '@angular/common';
@@ -10,6 +16,7 @@ import {
   LICENSE_ROUTE,
   LOGIN_ROUTE,
   STORAGE_KEY,
+  ThemeService,
   authInterceptor,
   errorInterceptor,
 } from 'shared';
@@ -35,5 +42,11 @@ export const appConfig: ApplicationConfig = {
     { provide: STORAGE_KEY, useValue: 'digitalregistry.pos.session' },
     { provide: LOGIN_ROUTE, useValue: '/prijava' },
     { provide: LICENSE_ROUTE, useValue: '/licenca' },
+
+    // Paint before anything is drawn. The theme belongs to the restaurant, which the sign-in screen
+    // does not yet know, so this puts back what this device saw last; the server's answer replaces
+    // it once there is a session. Without it the whole application changes colour a beat after the
+    // password is accepted, which reads as a fault.
+    provideEnvironmentInitializer(() => inject(ThemeService).restoreCached()),
   ],
 };

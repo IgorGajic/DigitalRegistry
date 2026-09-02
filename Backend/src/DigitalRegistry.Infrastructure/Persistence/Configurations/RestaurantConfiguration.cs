@@ -8,6 +8,13 @@ public class RestaurantConfiguration : IEntityTypeConfiguration<Restaurant>
 {
     public void Configure(EntityTypeBuilder<Restaurant> builder)
     {
+        // Spelled out because the database's own idea of "no value given" is 0, and AppTheme has no
+        // 0 — it starts at Petrol. Left implicit, every venue that existed before this column did
+        // would have been stamped with a theme that does not exist, and the till would have fallen
+        // back to whatever the client did with an unknown number.
+        builder.Property(restaurant => restaurant.Theme)
+            .HasDefaultValue(DigitalRegistry.Domain.Enums.AppTheme.Petrol);
+
         builder.HasKey(restaurant => restaurant.Id);
 
         builder.Property(restaurant => restaurant.Name)

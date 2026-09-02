@@ -3,6 +3,10 @@
 @use '../../shared/styles/responsive-table' as rt;
 @use '../../shared/styles/till_theme-colors' as till;
 
+// The palettes a venue may choose. Emits only `:root[data-dr-theme=...]` blocks, whose selectors
+// out-specify the defaults below wherever they restate one.
+@use './themes';
+
 // The till's theme.
 //
 // Petrol ink rather than a stock palette: it is the colour of enamel trade signage and of till
@@ -12,6 +16,8 @@
 // Density stays at 0. This screen is worked standing, with a finger, and every control has to keep
 // its full target. The platform application is denser, because it is worked sitting with a mouse.
 html {
+  // The default. Each theme restates it on `:root`, and the dark ones flip it — which is all it
+  // takes, because Material emits every system token as `light-dark(light, dark)`.
   color-scheme: light;
 
   @include mat.theme((
@@ -44,10 +50,26 @@ html {
   --dr-free-bg: #e8f5e9;
   --dr-occupied: #c62828;
   --dr-occupied-bg: #ffebee;
-  --dr-reserved: #ef6c00;
-  --dr-reserved-bg: #fff3e0;
+  // Darkened and deepened after measuring, not by eye. The old pair (#ef6c00 on #fff3e0) put the
+  // number inside a reserved table at 2.81:1 against its own fill — under every threshold there is
+  // — and its fill was 16 units of RGB from the occupied fill, which is to say the two pastels were
+  // very nearly the same colour. This pair reads 4.39:1, and the two fills are 55 apart. Held away
+  // from occupied red at the same time: darkening orange runs toward brown, which is *further* from
+  // red than the original was, so both readings improved together rather than trading off.
+  --dr-reserved: #a84e00;
+  --dr-reserved-bg: #ffdfb8;
   --dr-out-of-service: #616161;
   --dr-out-of-service-bg: #eeeeee;
+
+  // The takings band on the reports screen: how a period was paid for.
+  //
+  // Not brand colour and not status colour — three categories that only have to be told apart, so
+  // they were chosen for separation rather than for meaning. Put through the validator for lightness
+  // range, chroma threshold, colour-vision separation and contrast against the surface. The brand
+  // petrol failed as a data colour, which is fine: it was picked to be chrome.
+  --dr-pay-cash: #c07c2e;
+  --dr-pay-card: #00949c;
+  --dr-pay-wallet: #7b52a8;
 
   // Room fixtures — the bar, the restrooms, the way in.
   //
@@ -81,6 +103,21 @@ html {
 }
 
 @media print {
+  // Paper is white and toner is black, whatever the venue painted its screen. A dark theme printed
+  // as it looks would come out either as a black rectangle or, with backgrounds dropped, as pale
+  // grey text on white — and a receipt is the one artefact of this application that leaves the
+  // building. `color-scheme` is reset too, so Material's own tokens resolve to their light halves
+  // rather than being overridden one by one.
+  :root {
+    color-scheme: light !important;
+  }
+
+  body,
+  .dr-printable {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
   // Printing a bill should produce the bill, not the application around it.
   .dr-no-print {
     display: none !important;

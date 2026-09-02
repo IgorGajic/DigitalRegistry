@@ -27,6 +27,28 @@ public record OrderDto(
     decimal Total,
     IReadOnlyList<OrderItemDto> Items);
 
+/// <summary>
+/// One round waiting to be carried out to a table.
+/// </summary>
+/// <param name="RoomName">
+/// Null for a table nobody has drawn on a floor plan yet. Such a table still takes orders, and the
+/// waiter still has to find it — so the ticket says the number and stays quiet about the room rather
+/// than being withheld.
+/// </param>
+public record ServiceTicketDto(
+    Guid Id,
+    Guid TableId,
+    int TableNumber,
+    string? RoomName,
+    DateTime PlacedAtUtc,
+    IReadOnlyList<ServiceTicketLineDto> Items);
+
+/// <summary>What is on the tray, and how many of it.</summary>
+/// <remarks>
+/// Deliberately not priced. This is a card read while carrying something; money belongs to the bill.
+/// </remarks>
+public record ServiceTicketLineDto(string MenuItemName, int Quantity);
+
 /// <summary>The record of a payment taken against an order.</summary>
 public record TransactionDto(
     Guid Id,

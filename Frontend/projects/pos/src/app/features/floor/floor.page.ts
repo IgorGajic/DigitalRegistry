@@ -21,6 +21,7 @@ import {
   FloorPlanTableDto,
   RoomDto,
   RoomFixtureDto,
+  ServiceTicketDto,
   TableStatus,
   TillApiService,
   elapsedSince,
@@ -70,7 +71,9 @@ const MIN_CANVAS_HEIGHT = 200;
             <button mat-flat-button (click)="goToLayout()">Uredi raspored</button>
           </div>
         } @else {
+          <div class="floor__with-queue">
           <mat-tab-group
+            class="floor__rooms"
             [selectedIndex]="activeRoom()"
             (selectedIndexChange)="activeRoom.set($event)"
             animationDuration="120ms"
@@ -163,6 +166,58 @@ const MIN_CANVAS_HEIGHT = 200;
             }
           </mat-tab-group>
 
+          <!--
+            The runner's queue. A round ordered from a phone has nobody attached to it — no
+            waiter took it, and the table may be one nobody has looked at for an hour — so
+            unless it is written down somewhere it waits until somebody happens to notice.
+            It sits beside the plan rather than on it: the plan says where, this says what.
+          -->
+          <aside class="floor__queue" [style.max-height.px]="available()">
+            <h2 class="floor__queue-title">
+              Za iznošenje
+              @if (queue().length) {
+                <span class="floor__queue-count">{{ queue().length }}</span>
+              }
+            </h2>
+
+            <div class="floor__queue-list">
+              @for (ticket of queue(); track ticket.id) {
+                <article class="floor__ticket">
+                  <header class="floor__ticket-head">
+                    <span class="floor__ticket-table">Sto {{ ticket.tableNumber }}</span>
+                    @if (ticket.roomName) {
+                      <span class="floor__ticket-room">{{ ticket.roomName }}</span>
+                    }
+                    <span class="dr-toolbar-spacer"></span>
+                    <span class="floor__ticket-since">{{ elapsed(ticket.placedAtUtc) }}</span>
+                  </header>
+
+                  <ul class="floor__ticket-items">
+                    @for (line of ticket.items; track line.menuItemName) {
+                      <li>
+                        <span class="floor__ticket-qty">{{ line.quantity }}×</span>
+                        {{ line.menuItemName }}
+                      </li>
+                    }
+                  </ul>
+
+                  <button
+                    mat-flat-button
+                    class="floor__ticket-done"
+                    [disabled]="serving() === ticket.id"
+                    (click)="markServed(ticket)"
+                  >
+                    <mat-icon>check</mat-icon>
+                    Izneto
+                  </button>
+                </article>
+              } @empty {
+                <p class="dr-muted floor__queue-empty">Nema porudžbina na čekanju.</p>
+              }
+            </div>
+          </aside>
+          </div>
+
           @if (data.unplacedTables.length) {
             <p class="dr-muted floor__unplaced">
               <mat-icon inline>info</mat-icon>
@@ -204,6 +259,21 @@ const MIN_CANVAS_HEIGHT = 200;
       height: 14px;
       border-radius: 4px;
       display: inline-block;
+    }
+
+    /* Plan and queue side by side. The plan keeps its own ceiling and centres in what is left; the
+       queue takes a fixed column so it does not grow and shrink as tickets come and go. */
+    .floor__with-queue {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--dr-gap);
+    }
+
+    /* The rooms take whatever the queue leaves. min-width 0 so this flex child may shrink below its
+       content — without it the tab group refuses to give the column room and the pair overflows. */
+    .floor__rooms {
+      flex: 1;
+      min-width: 0;
     }
 
     .floor__canvas {
@@ -305,6 +375,116 @@ const MIN_CANVAS_HEIGHT = 200;
     .floor__unplaced {
       margin-top: 12px;
     }
+
+    /* ------------------------------------------------------------------------ runner's queue */
+
+    .floor__queue {
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 260px;
+      min-height: 0;
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-radius: var(--dr-radius);
+      background: var(--mat-sys-surface);
+      overflow: hidden;
+    }
+
+    .floor__queue-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      padding: 10px 12px;
+      font-family: var(--dr-font-brand);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--mat-sys-on-surface-variant);
+      border-bottom: 1px solid var(--mat-sys-outline-variant);
+    }
+
+    .floor__queue-count {
+      padding: 1px 8px;
+      border-radius: 999px;
+      background: var(--mat-sys-primary);
+      color: var(--mat-sys-on-primary);
+      font-family: var(--dr-font-mono);
+    }
+
+    /* This is the thing that scrolls — not the page. The floor plan must stay where it is while a
+       waiter works down the list, and the list is the only part that can outgrow the window. */
+    .floor__queue-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .floor__queue-empty {
+      margin: 8px 4px;
+      font-size: 0.85rem;
+    }
+
+    .floor__ticket {
+      border: 1px solid var(--mat-sys-outline-variant);
+      border-left: 3px solid var(--dr-reserved);
+      border-radius: var(--dr-radius-sm);
+      padding: 8px 10px;
+      background: var(--mat-sys-surface-container-low);
+    }
+
+    .floor__ticket-head {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .floor__ticket-table {
+      font-family: var(--dr-font-brand);
+      font-weight: 700;
+    }
+
+    .floor__ticket-room,
+    .floor__ticket-since {
+      font-size: 0.75rem;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .floor__ticket-items {
+      margin: 0 0 8px;
+      padding: 0;
+      list-style: none;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .floor__ticket-qty {
+      font-family: var(--dr-font-mono);
+      font-weight: 600;
+    }
+
+    .floor__ticket-done {
+      width: 100%;
+    }
+
+    /* Below the breakpoint the pair stacks: a 260 px column beside a plan on a tablet held upright
+       leaves neither enough room to be read. The queue keeps its own scroll either way. */
+    @media (max-width: 900px) {
+      .floor__with-queue {
+        flex-direction: column;
+      }
+
+      .floor__queue {
+        flex: none;
+        width: 100%;
+        max-height: 320px;
+      }
+    }
   `,
 })
 export class FloorPage {
@@ -320,6 +500,12 @@ export class FloorPage {
   protected readonly activeRoom = signal(0);
 
   protected readonly FixtureShape = FixtureShape;
+
+  /** Rounds ordered from a phone that nobody has carried out yet, oldest first. */
+  protected readonly queue = signal<ServiceTicketDto[]>([]);
+
+  /** The ticket whose button has been pressed, so it cannot be pressed twice. */
+  protected readonly serving = signal<string | null>(null);
 
   protected readonly legend = [
     { status: TableStatus.Available, colour: 'var(--dr-free)' },
@@ -342,7 +528,7 @@ export class FloorPage {
    * changes height with the viewport, and the legend wraps on a narrow one; a constant subtracted
    * from the window height would be wrong the first time any of that moved, and wrong silently.
    */
-  private readonly available = signal(0);
+  protected readonly available = signal(0);
 
   /** Bumped by anything that can change the measurement but is not itself state on this page. */
   private readonly viewportTick = signal(0);
@@ -386,6 +572,36 @@ export class FloorPage {
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
+    });
+
+    // Read alongside the plan and on the same triggers. Failure is silent on purpose: an empty
+    // queue and an unreachable one look the same, and a snackbar over the floor screen every time
+    // the network hiccups would be worse than either.
+    this.api.serviceQueue().subscribe({
+      next: (tickets) => this.queue.set(tickets),
+      error: () => undefined,
+    });
+  }
+
+  /**
+   * Takes a round off the queue once it has been carried out.
+   *
+   * The card is removed here rather than waiting for the round trip, because the waiter is holding
+   * a tray and has already moved on. The request still runs, and the next reload — which any hub
+   * event brings — is what settles the truth if it failed.
+   */
+  protected markServed(ticket: ServiceTicketDto): void {
+    this.serving.set(ticket.id);
+    this.queue.update((tickets) => tickets.filter((candidate) => candidate.id !== ticket.id));
+
+    this.api.markOrderServed(ticket.id).subscribe({
+      next: () => this.serving.set(null),
+      error: () => {
+        // Put it back. Somebody else may have served it a moment ago, in which case the reload
+        // takes it away again — but a card that vanished on a failure is a drink nobody carries.
+        this.serving.set(null);
+        this.reload();
+      },
     });
   }
 

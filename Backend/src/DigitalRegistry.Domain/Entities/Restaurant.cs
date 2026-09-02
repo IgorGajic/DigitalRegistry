@@ -1,4 +1,5 @@
 using DigitalRegistry.Domain.Common;
+using DigitalRegistry.Domain.Enums;
 using DigitalRegistry.Domain.ValueObjects;
 
 namespace DigitalRegistry.Domain.Entities;
@@ -41,6 +42,16 @@ public class Restaurant : BaseEntity
     /// example when the contract ends. Licence expiry is tracked separately on <see cref="License"/>.
     /// </summary>
     public bool IsActive { get; set; } = true;
+
+    /// <summary>
+    /// The palette this venue's till is painted in, chosen by its owner.
+    /// </summary>
+    /// <remarks>
+    /// Lives here rather than on the user because it is a property of the room, not of the person:
+    /// one venue works in daylight through a shopfront, another in a cellar, and the choice is made
+    /// once for everybody who works there.
+    /// </remarks>
+    public AppTheme Theme { get; set; } = AppTheme.Petrol;
 
     /// <summary>Every term the venue has ever bought, newest last.</summary>
     public ICollection<License> Licenses { get; set; } = new List<License>();
