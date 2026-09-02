@@ -13,8 +13,6 @@ import { Router } from '@angular/router';
 import {
   AuthService,
   FloorPlanTableDto,
-  PromptDialog,
-  PromptDialogData,
   MenuItemDto,
   OrderDto,
   OrderItemDto,
@@ -22,6 +20,10 @@ import {
   UserRole,
   seatsLabel,
 } from 'shared';
+import {
+  PromptDialog,
+  PromptDialogData,
+} from 'shared/ui';
 
 import { PaymentDialog, PaymentDialogResult } from './payment.dialog';
 import { ReceiptDialog, ReceiptDialogResult } from './receipt.dialog';

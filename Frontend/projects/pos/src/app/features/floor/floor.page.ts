@@ -8,7 +8,6 @@ import { Router } from '@angular/router';
 import {
   FloorPlanDto,
   FloorPlanTableDto,
-  RealtimeService,
   RoomDto,
   TableStatus,
   TillApiService,
@@ -17,6 +16,7 @@ import {
   tableStatusLabels,
   tablesLabel,
 } from 'shared';
+import { RealtimeService } from 'shared/realtime';
 
 /**
  * The till's main screen: the room as it actually is.

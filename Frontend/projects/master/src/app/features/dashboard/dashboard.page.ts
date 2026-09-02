@@ -5,13 +5,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
 import {
-  BarChart,
-  BarPoint,
   LoadingState,
   PlatformApiService,
   PlatformDashboardDto,
   daysLabel,
 } from 'shared';
+import {
+  BarChart,
+  BarPoint,
+} from 'shared/ui';
 
 /**
  * The platform at a glance.

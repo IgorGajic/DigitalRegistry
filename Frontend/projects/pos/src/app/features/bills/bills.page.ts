@@ -74,22 +74,29 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from '../order/void.dial
         <h1>Poslednji računi</h1>
         <span class="dr-toolbar-spacer"></span>
 
-        <button mat-icon-button (click)="shift(-1)" matTooltip="Prethodni dan">
-          <mat-icon>chevron_left</mat-icon>
-        </button>
+        <!--
+          The day and the three ways of changing it are one control, and are grouped so that they
+          stay one control when the header wraps. Left loose, the header's flex-wrap put the two
+          chevrons on different lines with the date between them.
+        -->
+        <div class="bills__day">
+          <button mat-icon-button (click)="shift(-1)" matTooltip="Prethodni dan">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
 
-        <mat-form-field appearance="outline" class="bills__date">
-          <mat-label>Dan</mat-label>
-          <input matInput [matDatepicker]="picker" [(ngModel)]="date" (dateChange)="load()" />
-          <mat-datepicker-toggle matIconSuffix [for]="picker" />
-          <mat-datepicker #picker />
-        </mat-form-field>
+          <mat-form-field appearance="outline" class="bills__date">
+            <mat-label>Dan</mat-label>
+            <input matInput [matDatepicker]="picker" [(ngModel)]="date" (dateChange)="load()" />
+            <mat-datepicker-toggle matIconSuffix [for]="picker" />
+            <mat-datepicker #picker />
+          </mat-form-field>
 
-        <button mat-icon-button (click)="shift(1)" matTooltip="Sledeći dan">
-          <mat-icon>chevron_right</mat-icon>
-        </button>
+          <button mat-icon-button (click)="shift(1)" matTooltip="Sledeći dan">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
 
-        <button mat-button (click)="today()">Danas</button>
+          <button mat-button (click)="today()">Danas</button>
+        </div>
 
         <mat-form-field appearance="outline" class="bills__filter">
           <mat-label>Status</mat-label>
@@ -241,6 +248,12 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from '../order/void.dial
       font-size: 1.5rem;
     }
 
+    .bills__day {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .bills__date {
       width: 170px;
     }
@@ -329,6 +342,16 @@ import { VoidDialog, VoidDialogData, VoidDialogResult } from '../order/void.dial
 
     @media (max-width: 900px) {
       /* The filters are a row of six controls; below the breakpoint they wrap to full width. */
+      .bills__day {
+        width: 100%;
+      }
+
+      /* Inside the group the date is the part that stretches; the buttons keep their own size. */
+      .bills__day .bills__date {
+        flex: 1;
+        width: auto;
+      }
+
       .bills__date,
       .bills__filter,
       .bills__search {

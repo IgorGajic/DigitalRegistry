@@ -8,12 +8,12 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import {
   AuthService,
   LicenseStatusDto,
-  RealtimeService,
   TillApiService,
   UserRole,
   daysLabel,
   userRoleLabels,
 } from 'shared';
+import { RealtimeService } from 'shared/realtime';
 
 interface NavItem {
   path: string;

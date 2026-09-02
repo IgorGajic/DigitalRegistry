@@ -14,8 +14,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
-  ConfirmDialog,
-  ConfirmDialogData,
   InventoryValuationLineDto,
   LoadingState,
   MenuItemDetailDto,
@@ -25,6 +23,10 @@ import {
   startOfDayUtc,
   unitLabels,
 } from 'shared';
+import {
+  ConfirmDialog,
+  ConfirmDialogData,
+} from 'shared/ui';
 
 import { RecipeDialog, RecipeDialogResult } from './recipe.dialog';
 

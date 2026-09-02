@@ -18,8 +18,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
-  ConfirmDialog,
-  ConfirmDialogData,
   LoadingState,
   ScheduledShiftDto,
   ShiftAssignmentDto,
@@ -37,6 +35,10 @@ import {
   toDateOnly,
   weekDayOrder,
 } from 'shared';
+import {
+  ConfirmDialog,
+  ConfirmDialogData,
+} from 'shared/ui';
 
 /**
  * The rota: named shifts, who works them, and turning that into an actual schedule.

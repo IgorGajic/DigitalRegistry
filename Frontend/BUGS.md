@@ -187,8 +187,9 @@ bilo 47 — dodato pet za `LoadingState`).
 
       Dodato i ono što nije postojalo: vidljiv fokus tastature i poštovanje `prefers-reduced-motion`.
 
-**Runda 3 zatvorena.** Sva tri projekta se grade, **71 test** prolazi (37 `shared` + 34 `pos`;
-bilo 43 na početku dana).
+**Runda 3 zatvorena.** Sva tri projekta se grade, **76 testova** prolazi (47 `shared` + 29 `pos`;
+bilo 43 na početku dana). *(Brojka je ovde prvo bila zapisana kao 71 — 37 + 34; oba sabirka su bila
+pogrešna, izbrojano ponovo pokretanjem.)*
 
 ---
 
@@ -199,48 +200,103 @@ Ovo je ono što je ostalo, poređano po tome koliko košta ako se zaboravi.
 
 ### Provera
 
-- [ ] **Ništa nije prokliktano uživo.** Grafikon i responsive kartice su gledani u Chrome-u, ali
-      kroz harness: kompajliran pravi mixin nad DOM-om koji Material stvarno emituje, i verna
-      transkripcija geometrije grafikona. To je pouzdano za pitanje koje je postavljeno — CSS i
-      geometrija — ali **nije isto što i živa aplikacija** sa backendom i pravim podacima.
-      Kad se digne ceo stek (četiri procesa, vidi `README.md`), proći kroz `/izvestaji`, `/racuni`,
-      `/magacin` i `/smene`, i to na širini tableta a ne samo na desktopu.
-      Ovo je najveća preostala stavka: sve ostalo ispod je poznato i ograničeno, a ovo može da
-      otvori nepoznato.
+- [x] **Prokliktano uživo, 2. septembra 2026.** Sva četiri procesa podignuta, prijava kao vlasnik
+      demo restorana, pa `/sala`, `/racuni`, `/magacin`, `/smene`, `/izvestaji`, `/jelovnik`,
+      `/rezervacije` i `/zaposleni` — svaki na desktopu i na 820 px.
 
-- [ ] **Rad nije komitovan.** Stoji u radnom stablu.
+      Prozor Chrome-a se nije dao smanjiti (bio je maksimizovan, `resize_window` javlja uspeh a
+      `innerWidth` ostaje 1920), pa je uska širina dobijena kroz same-origin iframe od 820 px na
+      istom hostu. Media upiti se računaju prema širini okvira, sesija se deli kroz `localStorage`,
+      pa je to i dalje živa aplikacija sa živim backendom — samo u užem okviru.
 
-### Nedoslednosti koje je ovaj rad ostavio za sobom
+      **Strah je bio opravdan: našlo se pet stvari, i najveća je bila baš ono što je harness
+      propustio.** Vidi „Nađeno pri klikanju" ispod.
 
-- [ ] **Tri `mat-table` nisu dobile responsive tretman.**
-      - `pos/features/menu/menu.page.ts` — **propušteno.** Nije bilo na spisku od šest jer stranica
-        već ima prelomnu tačku na 1000px za dvokolonski raspored, ali sama tabela (4 kolone) i dalje
-        ne stakuje. Manje hitno od `racuni` sa 8 kolona, ali je nedoslednost unutar iste aplikacije.
-      - `master/restaurants.page.ts` (6 kolona) i tabela uplata u `master/restaurant-detail.page.ts`.
-        Master nije bio u dogovorenom obimu, ali ispada iz ekrana isto kao i kasa.
+- [x] **Rad nije komitovan.** Stoji u radnom stablu.
 
-- [ ] **Dve nove budžetske opomene, napravljene ovim radom.**
-      `reports.page.ts` je sada 5,59 kB stila prema budžetu od 4 kB, `inventory.page.ts` 4,04 kB —
-      oba zbog blokova sa oznakama kolona za `rt.stacked`. Opomene su, ne greške (prag za grešku je
-      8 kB), ali je build bučniji nego što je bio.
-      Rešenje: izmestiti ponovljene `@media` blokove u parametrizovan mixin, umesto da svaka
-      stranica nosi svoj.
+### Nađeno pri klikanju (2. septembar)
 
-- [ ] **Dva grafikona u sistemu koji bi trebalo da bude jedan.**
-      „Prihod po mesecima" u master pregledu su i dalje div-stubci sa sopstvenom logikom skaliranja,
-      dok Izveštaji sada imaju SVG grafikon sa validiranom paletom, tooltipom i testovima geometrije.
-      Master nije bio u obimu, ali razlika se vidi.
+- [x] **Responsive kartice su bile pokvarene na svakoj stranici — redovi su se preklapali.**
+      Ovo je tačno ona greška zbog koje je „prokliktati uživo" i stajalo na vrhu spiska.
 
-- [ ] **`TODO.md` linija 548 i dalje vodi jezik grešaka kao otvorenu stavku**, iako je odrađen
-      (`shared/http/messages.ts`). Fazu 17 treba zatvoriti i pokazati odatle na ovaj fajl.
+      `structure` postavlja `.mat-mdc-row { height: auto }`. Material u svom stilu tabele ima
+      `.mat-mdc-row { height: 52px }` — ista specifičnost (0,1,0), ali Material svoj stil ubacuje u
+      `<head>` **kad se komponenta prvi put stvori**, dakle posle globalnog lista. Pri izjednačenoj
+      specifičnosti pobeđuje kasnije pravilo, pa je svaka kartica ostala sečena na 52 px i njen
+      sadržaj se prelivao preko sledeće. Isto su gubila i `padding` i `border: none` na ćeliji, pa
+      je svaki red kartice imao liniju ispod sebe.
 
-- [ ] **Početni bundle: 736 kB (kasa), 660 kB (master)** prema budžetu od 500 kB. Zatečeno stanje
-      je bilo 718 kB / 640 kB — poraslo je oko 18 kB od tri porodice fontova i grafikona.
-      Nije hitno za diplomski, ali budžet stoji prekoračen otkad postoji.
+      Zašto harness ovo nije uhvatio: kompajlirao je mixin nad DOM-om koji Material emituje, ali
+      **bez Material-ovog sopstvenog lista u kaskadi**. Provereno je da pravilo postoji, ne da
+      pobeđuje.
+
+      Rešeno tako što je svako pravilo za red i ćeliju u `structure` pisano kao potomak
+      `.mat-mdc-table` — jedna klasa više rešava izjednačenje bez `!important`.
+
+- [x] **Strelice za dan su se razdvajale pri prelomu** na `/racuni` i `/rezervacije`. Ispod 900 px
+      polje za datum ide na `width: 100%`, pa je `flex-wrap` ostavljao „<" gore uz naslov, a „>" i
+      „Danas" u redu ispod datuma — dve strelice istog para na različitim linijama, sa datumom
+      između. Datum i tri načina da se promeni sada su jedan `div`, pa se lome zajedno.
+
+- [x] **Oba dijaloga magacina su dočekivala korisnika prigovorom.** „Ulaz robe" se otvara sa
+      količinom 0 i odmah je pisalo „Unesite količinu veću od nule."; „Popis" isto, sa „Razlog mora
+      imati bar 3 znaka." Poruka je vezana za `problem()`, koje je tačno od trenutka otvaranja —
+      ali ugašeno dugme već kaže „još ne", a rečenica je za kad se pokušalo. Uveden je `touched`.
+
+- [x] **Jedino mesto u aplikaciji koje je štampalo sirov JavaScript broj.** Posle ulaza robe
+      snackbar je javljao „Zaduženo. Novo stanje 5194, prosečna nabavna 1.8." dok je tabela dva reda
+      niže pisala „5.194 g" i „1,80" — bez grupisanja, sa tačkom umesto zareza i bez jedinice.
+      Sada ide kroz `formatNumber` sa `LOCALE_ID`. Popis je uz to govorio „Razlika -150"; sada kaže
+      „Manjak 150 g", jer predznak nije reč.
+
+- [x] **Dobavljač i broj otpremnice su se unosili pa nestajali.** Forma ih traži, `StockEntry` ih
+      čuva, a nijedan ekran ih ne pokazuje — kolona „Napomena" u knjizi prometa stajala je prazna za
+      svaku nabavku, dok popis u nju upisuje svoj razlog. Sada i nabavka upisuje: „Pića Balkan ·
+      OTP-771". Backend, `RecordStockEntryCommandHandler`.
+
+- [x] **`elapsedSince` nije prelazio u dane.** Račun otvoren prošlog ponedeljka pisao je
+      „192 h 24 min". Otvoren račun preko noći je baš ono što konobar treba da primeti, a ovaj
+      oblik ga je zakopao u računanje. Sada „8 dana", „1 dan 3 h". 6 testova.
+
+### Nedoslednosti — zatvorene
+
+Sve četiri su zapravo bile odrađene pre nego što je ovaj spisak pisan; provereno u kodu i buildom.
+
+- [x] **Tri `mat-table` bez responsive tretmana** — `menu.page.ts`, `master/restaurants.page.ts` i
+      tabela uplata u `master/restaurant-detail.page.ts` sve tri imaju `rt.labels`.
+
+- [x] **Dve budžetske opomene za stil komponente** — nema ih. `structure` je već razdvojen od
+      `labels` i uključuje se jednom globalno po aplikaciji, pa stranica nosi samo oznake kolona.
+
+- [x] **Dva grafikona u sistemu koji bi trebalo da bude jedan** — master pregled koristi isti
+      `BarChart` iz `shared/ui` kao i Izveštaji.
+
+- [x] **`TODO.md` linija 548** — Faza 17 je zatvorena, jezik grešaka je `[x]`, i odeljak već
+      pokazuje na ovaj fajl.
+
+- [x] **Početni bundle: bio 743 kB (kasa) i 668 kB (master) prema budžetu od 500 kB.**
+      Uzrok nije bio ni font ni grafikon. Obe aplikacije uvoze iz `shared` pre nego što znaju ko
+      gleda — interceptore, tokene, čuvare — pa je `shared` u njihovom eager grafu. Bundler deli
+      chunkove po izvornom fajlu, a biblioteka je **jedan** fajl (`fesm2022/shared.mjs`): sve što je
+      izvezeno pored tih interceptora ulazi u početni bundle zajedno sa njima, i kad to koristi samo
+      lenja ruta. Tako je ispred ekrana za prijavu stajao ceo `@microsoft/signalr` (tri lenja ekrana
+      otvaraju hub) i ceo Material dijalog sloj (prijava nema nijedan dijalog).
+
+      Rešeno sekundarnim ulaznim tačkama: `shared/ui` (dijalozi, grafikon) i `shared/realtime`
+      (hub). **743 → 519 kB** za kasu i **668 → 507 kB** za master; prenos 171 → 129 kB.
+
+      Ostatak do 500 kB je Angular, CDK overlay i snackbar koji `errorInterceptor` stvarno treba pre
+      prijave. Budžet je podignut na **560 kB** — ne da bi opomena ućutala, nego da opet nešto čuva:
+      prekoračen budžet ne hvata ništa. Prvi put se sva tri projekta grade bez ijednog upozorenja.
+
+**Prolaz od 2. septembra zatvoren.** Sva tri projekta se grade **bez ijednog upozorenja** — prvi put
+otkad budžet postoji. **82 testa** prolaze (53 `shared` + 29 `pos`; bilo 76), backend 208.
 
 ### Namerno nije rađeno
 
-- **`stockEntries`, `lowStock`, `deleteShift`** — vidi obrazloženje uz stavku 12.
+- **`stockEntries`, `lowStock`, `deleteShift`** — vidi obrazloženje uz stavku 12. Ekran za listu
+  isporuka i dalje nije rađen, ali ono zbog čega je nedostajao — da se uneti dobavljač i broj
+  otpremnice nigde ne vide — rešeno je kroz knjigu prometa, vidi „Nađeno pri klikanju".
 - **Tamna tema** — vidi stavku 14. Odluka, ne propust.
 - **Četiri produkcijske stavke iz `TODO.md`** (ključ za potpisivanje tokena, `SeedDemoData`,
   CORS/HTTPS, strani ključ na `RestaurantId`). Tamo su eksplicitno označene kao „nije za diplomski".

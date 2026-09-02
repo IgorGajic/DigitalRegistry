@@ -61,7 +61,7 @@ export interface StockEntryDialogResult {
             step="1"
             cdkFocusInitial
             [ngModel]="quantity()"
-            (ngModelChange)="quantity.set(+$event)"
+            (ngModelChange)="quantity.set(+$event); touched.set(true)"
             name="quantity"
           />
           <span matTextSuffix>{{ unit }}</span>
@@ -75,7 +75,7 @@ export interface StockEntryDialogResult {
             min="0"
             step="0.01"
             [ngModel]="unitPrice()"
-            (ngModelChange)="unitPrice.set(+$event)"
+            (ngModelChange)="unitPrice.set(+$event); touched.set(true)"
             name="unitPrice"
           />
           <span matTextSuffix>RSD</span>
@@ -83,7 +83,7 @@ export interface StockEntryDialogResult {
 
         <mat-form-field appearance="outline">
           <mat-label>Dobavljač</mat-label>
-          <input matInput [ngModel]="supplier()" (ngModelChange)="supplier.set($event)" name="supplier" />
+          <input matInput [ngModel]="supplier()" (ngModelChange)="supplier.set($event); touched.set(true)" name="supplier" />
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -91,7 +91,7 @@ export interface StockEntryDialogResult {
           <input
             matInput
             [ngModel]="reference()"
-            (ngModelChange)="reference.set($event)"
+            (ngModelChange)="reference.set($event); touched.set(true)"
             name="reference"
           />
         </mat-form-field>
@@ -106,7 +106,7 @@ export interface StockEntryDialogResult {
         Novo stanje: <strong>{{ stockAfter() | number: '1.0-3' }} {{ unit }}</strong>
       </p>
 
-      @if (problem(); as message) {
+      @if (touched() && problem(); as message) {
         <p class="entry__problem">
           <mat-icon inline>error_outline</mat-icon>
           {{ message }}
@@ -186,6 +186,16 @@ export class StockEntryDialog {
 
   protected readonly total = computed(() => this.quantity() * this.unitPrice());
   protected readonly stockAfter = computed(() => this.data.line.stockQuantity + this.quantity());
+
+  /**
+   * Whether anyone has typed yet.
+   *
+   * {@link problem} is what the button reads to decide whether it may be pressed, and it is right
+   * from the moment the dialog opens. Printing it from that moment is not: a form nobody has touched
+   * greeted the person with a complaint about the field they were about to fill in. The disabled
+   * button already says "not yet"; the sentence is for when they have tried and something is wrong.
+   */
+  protected readonly touched = signal(false);
 
   protected readonly problem = computed<string | null>(() => {
     if (!Number.isFinite(this.quantity()) || this.quantity() <= 0) {

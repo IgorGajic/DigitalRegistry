@@ -17,11 +17,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router } from '@angular/router';
 import {
   AuthService,
-  ConfirmDialog,
-  ConfirmDialogData,
   FloorPlanTableDto,
   LoadingState,
-  RealtimeService,
   ReservationScheduleEntryDto,
   ReservationStatus,
   TillApiService,
@@ -31,6 +28,11 @@ import {
   timeOfDay,
   toDateOnly,
 } from 'shared';
+import { RealtimeService } from 'shared/realtime';
+import {
+  ConfirmDialog,
+  ConfirmDialogData,
+} from 'shared/ui';
 
 import {
   ReservationDialog,
@@ -79,22 +81,29 @@ import {
         <h1>Rezervacije</h1>
         <span class="dr-toolbar-spacer"></span>
 
-        <button mat-icon-button (click)="shift(-1)" matTooltip="Prethodni dan">
-          <mat-icon>chevron_left</mat-icon>
-        </button>
+        <!--
+          The day and the three ways of changing it are one control, and are grouped so that they
+          stay one control when the header wraps. Left loose, the header's flex-wrap put the two
+          chevrons on different lines with the date between them.
+        -->
+        <div class="res__day">
+          <button mat-icon-button (click)="shift(-1)" matTooltip="Prethodni dan">
+            <mat-icon>chevron_left</mat-icon>
+          </button>
 
-        <mat-form-field appearance="outline" class="res__date">
-          <mat-label>Dan</mat-label>
-          <input matInput [matDatepicker]="picker" [(ngModel)]="date" (dateChange)="load()" />
-          <mat-datepicker-toggle matIconSuffix [for]="picker" />
-          <mat-datepicker #picker />
-        </mat-form-field>
+          <mat-form-field appearance="outline" class="res__date">
+            <mat-label>Dan</mat-label>
+            <input matInput [matDatepicker]="picker" [(ngModel)]="date" (dateChange)="load()" />
+            <mat-datepicker-toggle matIconSuffix [for]="picker" />
+            <mat-datepicker #picker />
+          </mat-form-field>
 
-        <button mat-icon-button (click)="shift(1)" matTooltip="Sledeći dan">
-          <mat-icon>chevron_right</mat-icon>
-        </button>
+          <button mat-icon-button (click)="shift(1)" matTooltip="Sledeći dan">
+            <mat-icon>chevron_right</mat-icon>
+          </button>
 
-        <button mat-button (click)="today()">Danas</button>
+          <button mat-button (click)="today()">Danas</button>
+        </div>
 
         <button mat-flat-button (click)="book()">
           <mat-icon>add</mat-icon>
@@ -229,6 +238,12 @@ import {
       font-size: 1.5rem;
     }
 
+    .res__day {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .res__date {
       width: 170px;
     }
@@ -295,6 +310,16 @@ import {
     ));
 
     @media (max-width: 900px) {
+      .res__day {
+        width: 100%;
+      }
+
+      /* Inside the group the date is the part that stretches; the buttons keep their own size. */
+      .res__day .res__date {
+        flex: 1;
+        width: auto;
+      }
+
       .res__date,
       .res__filter {
         width: 100%;

@@ -59,7 +59,7 @@ const MIN_REASON = 3;
           step="0.1"
           cdkFocusInitial
           [ngModel]="counted()"
-          (ngModelChange)="counted.set(+$event)"
+          (ngModelChange)="counted.set(+$event); touched.set(true)"
           name="counted"
         />
         <span matTextSuffix>{{ unit }}</span>
@@ -79,14 +79,14 @@ const MIN_REASON = 3;
           matInput
           rows="2"
           [ngModel]="reason()"
-          (ngModelChange)="reason.set($event)"
+          (ngModelChange)="reason.set($event); touched.set(true)"
           name="reason"
           placeholder="npr. lom, kalo, greška u prijemu"
         ></textarea>
         <mat-hint>Najmanje {{ minReason }} znaka. Ostaje zabeleženo uz vaše ime.</mat-hint>
       </mat-form-field>
 
-      @if (problem(); as message) {
+      @if (touched() && problem(); as message) {
         <p class="count__problem">
           <mat-icon inline>error_outline</mat-icon>
           {{ message }}
@@ -154,6 +154,16 @@ export class StockCountDialog {
   protected readonly reason = signal('');
 
   protected readonly difference = computed(() => this.counted() - this.data.line.stockQuantity);
+
+  /**
+   * Whether anyone has typed yet.
+   *
+   * {@link problem} is what the button reads to decide whether it may be pressed, and it is right
+   * from the moment the dialog opens. Printing it from that moment is not: a form nobody has touched
+   * greeted the person with a complaint about the field they were about to fill in. The disabled
+   * button already says "not yet"; the sentence is for when they have tried and something is wrong.
+   */
+  protected readonly touched = signal(false);
 
   protected readonly problem = computed<string | null>(() => {
     if (!Number.isFinite(this.counted()) || this.counted() < 0) {

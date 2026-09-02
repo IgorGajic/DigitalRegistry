@@ -25,6 +25,14 @@ $breakpoint: 900px !default;
 /// Scoped to `.mat-mdc-table` rather than to `table`, because a bare element selector here would
 /// also catch the receipt — 80 mm of deliberately aligned columns, which `display: block` would
 /// destroy.
+///
+/// Every row and cell rule is written as a descendant of `.mat-mdc-table` for a second reason:
+/// specificity. Material's own `.mat-mdc-row { height: 52px }` and `.mat-mdc-cell { border-bottom }`
+/// live in the table component's stylesheet, which Angular injects into `<head>` when the component
+/// is first created — that is, after this global sheet. At equal specificity the later rule wins, so
+/// a bare `.mat-mdc-row { height: auto }` here loses and every card gets clipped to 52 px, its
+/// contents spilling over the card below. One extra class beats the tie outright, which `!important`
+/// would too — but by shouting rather than by being more specific about what it means.
 @mixin structure {
   @media (max-width: $breakpoint) {
     .mat-mdc-table {
@@ -32,16 +40,16 @@ $breakpoint: 900px !default;
     }
 
     // The header is what the labels replace.
-    .mat-mdc-header-row {
+    .mat-mdc-table .mat-mdc-header-row {
       display: none;
     }
 
     .mat-mdc-table tbody,
-    .mdc-data-table__content {
+    .mat-mdc-table .mdc-data-table__content {
       display: block;
     }
 
-    .mat-mdc-row {
+    .mat-mdc-table .mat-mdc-row {
       display: block;
       height: auto;
       padding: 10px 12px;
@@ -51,7 +59,7 @@ $breakpoint: 900px !default;
       background: var(--mat-sys-surface);
     }
 
-    .mat-mdc-cell {
+    .mat-mdc-table .mat-mdc-cell {
       display: flex;
       align-items: baseline;
       // Not `space-between`: a cell often holds more than one piece — a time and the time it
@@ -67,13 +75,13 @@ $breakpoint: 900px !default;
     }
 
     // A cell with nothing in it would otherwise leave a labelled blank line on the card.
-    .mat-mdc-cell:empty {
+    .mat-mdc-table .mat-mdc-cell:empty {
       display: none;
     }
 
     // How a label looks, stated once. `labels` below supplies only the words — without `content`
     // a pseudo-element generates no box, so this is inert on any cell that is not named.
-    .mat-mdc-cell::before {
+    .mat-mdc-table .mat-mdc-cell::before {
       flex: 0 0 auto;
       margin-right: auto;
       padding-right: 8px;
@@ -86,12 +94,12 @@ $breakpoint: 900px !default;
     }
 
     // Right-alignment is a column idea; in a stacked card the value already sits at the right end.
-    .mat-mdc-cell.dr-numeric {
+    .mat-mdc-table .mat-mdc-cell.dr-numeric {
       text-align: left;
     }
 
     // Actions stop being a trailing column and become the card's footer.
-    .cdk-column-actions {
+    .mat-mdc-table .cdk-column-actions {
       justify-content: flex-end;
       gap: 4px;
       margin-top: 6px;

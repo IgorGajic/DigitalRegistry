@@ -27,7 +27,12 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "tsConfig": "projects/shared/tsconfig.spec.json"
+            "tsConfig": "projects/shared/tsconfig.spec.json",
+            "include": [
+              "**/*.spec.ts",
+              "../ui/**/*.spec.ts",
+              "../realtime/**/*.spec.ts"
+            ]
           }
         }
       }
@@ -73,7 +78,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "560kB",
                   "maximumError": "1MB"
                 },
                 {
@@ -156,7 +161,7 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
+                  "maximumWarning": "560kB",
                   "maximumError": "1MB"
                 },
                 {

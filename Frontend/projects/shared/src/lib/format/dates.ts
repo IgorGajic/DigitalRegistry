@@ -1,3 +1,5 @@
+import { daysLabel } from './labels';
+
 /**
  * Date helpers for talking to an API that thinks in UTC instants and local business days.
  *
@@ -55,7 +57,14 @@ export function startOfWeek(date: Date): Date {
   return result;
 }
 
-/** How long a tab has been open, as "1h 20min" — what a waiter glancing at the floor wants. */
+/**
+ * How long a tab has been open, as "1 h 20 min" — what a waiter glancing at the floor wants.
+ *
+ * Rolls over into days past twenty-four hours. It reads as an edge case and is not: a tab left open
+ * overnight is exactly what a waiter needs to notice, and the unrolled form buried it in arithmetic
+ * — a bill open since last Monday said "192 h 24 min". Beyond a day the minutes stop being the
+ * question, so they are dropped and the hours kept.
+ */
 export function elapsedSince(isoUtc: string, now = new Date()): string {
   const minutes = Math.max(0, Math.floor((now.getTime() - new Date(isoUtc).getTime()) / 60000));
 
@@ -64,9 +73,18 @@ export function elapsedSince(isoUtc: string, now = new Date()): string {
   }
 
   const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
 
-  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+  if (hours < 24) {
+    const rest = minutes % 60;
+
+    return rest ? `${hours} h ${rest} min` : `${hours} h`;
+  }
+
+  const days = Math.floor(hours / 24);
+  const restHours = hours % 24;
+  const dayPart = `${days} ${daysLabel(days)}`;
+
+  return restHours ? `${dayPart} ${restHours} h` : dayPart;
 }
 
 /** `HH:mm` from an ISO instant, in the browser's local time. */

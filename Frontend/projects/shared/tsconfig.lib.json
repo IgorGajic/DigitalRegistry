@@ -9,7 +9,9 @@
     "types": []
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "ui/**/*.ts",
+    "realtime/**/*.ts"
   ],
   "exclude": [
     "**/*.spec.ts"

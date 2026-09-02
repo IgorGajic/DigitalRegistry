@@ -1,5 +1,5 @@
-import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { CurrencyPipe, DatePipe, DecimalPipe, formatNumber } from '@angular/common';
+import { Component, LOCALE_ID, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -13,6 +13,7 @@ import {
   InventoryValuationDto,
   InventoryValuationLineDto,
   LoadingState,
+  StockAdjustmentResultDto,
   StockMovementDto,
   TillApiService,
   addDays,
@@ -285,6 +286,7 @@ export class InventoryPage {
   private readonly api = inject(TillApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly dialog = inject(MatDialog);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly loading = new LoadingState();
   protected readonly stockColumns = ['name', 'stock', 'price', 'value', 'consumed', 'actions'];
@@ -325,9 +327,11 @@ export class InventoryPage {
         this.loading
           .track(this.api.recordStockEntry({ ingredientId: line.ingredientId, ...result }))
           .subscribe((entry) => {
+            const unit = unitLabels[line.unit];
+
             this.snackBar.open(
-              `Zaduženo. Novo stanje ${entry.stockAfter}, prosečna nabavna `
-                + `${entry.averagePurchasePriceAfter}.`,
+              `Zaduženo. Novo stanje ${this.amount(entry.stockAfter)} ${unit}, `
+                + `prosečna nabavna ${this.price(entry.averagePurchasePriceAfter)} RSD.`,
               'U redu',
               { duration: 6000 },
             );
@@ -349,12 +353,41 @@ export class InventoryPage {
         this.loading
           .track(this.api.adjustStock(line.ingredientId, result.counted, result.reason))
           .subscribe((outcome) => {
-            this.snackBar.open(`Popis sačuvan. Razlika ${outcome.difference}.`, 'U redu', {
-              duration: 6000,
-            });
+            this.snackBar.open(this.countOutcome(outcome), 'U redu', { duration: 6000 });
             this.load();
           });
       });
+  }
+
+  /**
+   * A quantity, written the way the rest of the screen writes quantities.
+   *
+   * These two messages were the only place in the application that printed a raw JavaScript number:
+   * a stock entry reported "Novo stanje 5194, prosečna nabavna 1.8" while the table two lines below
+   * it said "5.194 g" and "1,80". Same figure, three differences — no grouping, a full stop where
+   * the locale uses a comma, and no unit.
+   */
+  private amount(value: number): string {
+    return formatNumber(value, this.locale, '1.0-3');
+  }
+
+  /** A price, to two decimals, as the table beside it writes prices. */
+  private price(value: number): string {
+    return formatNumber(value, this.locale, '1.2-2');
+  }
+
+  /** Says which way a stocktake went, because a bare signed number does not. */
+  private countOutcome(outcome: StockAdjustmentResultDto): string {
+    const unit = unitLabels[outcome.unit];
+    const size = this.amount(Math.abs(outcome.difference));
+
+    if (outcome.difference === 0) {
+      return `Popis sačuvan. Stanje se poklopilo.`;
+    }
+
+    return outcome.difference < 0
+      ? `Popis sačuvan. Manjak ${size} ${unit}.`
+      : `Popis sačuvan. Višak ${size} ${unit}.`;
   }
 
   private load(): void {

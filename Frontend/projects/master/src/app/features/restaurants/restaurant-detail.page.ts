@@ -14,8 +14,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { RouterLink } from '@angular/router';
 import {
-  ConfirmDialog,
-  ConfirmDialogData,
   LicenseDto,
   LicensePaymentDto,
   LicensePlan,
@@ -23,8 +21,6 @@ import {
   LoadingState,
   PaymentMethod,
   PlatformApiService,
-  PromptDialog,
-  PromptDialogData,
   RestaurantSummaryDto,
   accountsLabel,
   daysLabel,
@@ -32,6 +28,12 @@ import {
   licenseStatusLabels,
   paymentMethodLabels,
 } from 'shared';
+import {
+  ConfirmDialog,
+  ConfirmDialogData,
+  PromptDialog,
+  PromptDialogData,
+} from 'shared/ui';
 
 /**
  * One venue: its licence, its payments, and the owner account.

@@ -488,10 +488,13 @@ umesto 9).
 
 **Faza 17 je zatvorena.** Ostaje samo ono što se tiče produkcije, na dnu ovog odeljka.
 
-> **Prolaz kroz UI/UX (1. septembar 2026.)** je zaseban posao i vodi se u
-> [`Frontend/BUGS.md`](Frontend/BUGS.md): petnaest zatvorenih stavki — od tooltipa koji nije radio i
-> pokvarene srpske množine, preko stanja učitavanja i responsive prikaza, do vizuelnog identiteta i
-> grafikona — i sedam otvorenih, od kojih je najveća da ništa od toga nije prokliktano uživo.
+> **Prolaz kroz UI/UX (1–2. septembar 2026.)** je zaseban posao i vodi se u
+> [`Frontend/BUGS.md`](Frontend/BUGS.md): petnaest stavki iz prva tri prolaza — od tooltipa koji
+> nije radio i pokvarene srpske množine, preko stanja učitavanja i responsive prikaza, do vizuelnog
+> identiteta i grafikona — pa još šest koje je otvorilo živo klikanje kroz podignut stek, među njima
+> i to da su se responsive kartice **preklapale na svakoj stranici**, jer Material svoj stil tabele
+> ubacuje posle globalnog lista i pri izjednačenoj specifičnosti pobeđuje.
+> Taj fajl je i mesto gde se vodi jezik grešaka (`shared/http/messages.ts`), zatvoren gore.
 
 ### Funkcionalne rupe — zatvorene
 

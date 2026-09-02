@@ -5,11 +5,11 @@ import { Router } from '@angular/router';
 import {
   FloorPlanDto,
   FloorPlanTableDto,
-  RealtimeService,
   TableShape,
   TableStatus,
   TillApiService,
 } from 'shared';
+import { RealtimeService } from 'shared/realtime';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

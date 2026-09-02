@@ -14,19 +14,21 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
-  ConfirmDialog,
-  ConfirmDialogData,
   FloorPlanDto,
   FloorPlanTableDto,
   LoadingState,
-  PromptDialog,
-  PromptDialogData,
   RoomDto,
   TableShape,
   TableLayoutRequest,
   TillApiService,
   seatsLabel,
 } from 'shared';
+import {
+  ConfirmDialog,
+  ConfirmDialogData,
+  PromptDialog,
+  PromptDialogData,
+} from 'shared/ui';
 
 import { QrSheetDialog, QrSheetDialogData } from './qr-sheet.dialog';
 import { RoomDialog, RoomDialogResult } from './room.dialog';

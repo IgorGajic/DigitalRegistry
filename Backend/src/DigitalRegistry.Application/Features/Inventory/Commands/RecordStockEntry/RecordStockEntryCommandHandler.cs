@@ -58,6 +58,11 @@ internal sealed class RecordStockEntryCommandHandler(
             Quantity = request.Quantity,
             BalanceAfter = ingredient.StockQuantity,
             StockEntryId = entry.Id,
+            // Who it came from and against what paper, on the ledger line itself. A stocktake already
+            // writes its reason here, so the column exists and is read; a delivery left it blank, and
+            // the supplier and delivery-note number the manager had just typed were stored on the
+            // entry and then shown nowhere. The entry stays the record; this is the trail.
+            Note = DescribeDelivery(entry),
             RecordedByUserId = userId,
             OccurredAtUtc = entry.EntryDateUtc
         });
@@ -88,5 +93,14 @@ internal sealed class RecordStockEntryCommandHandler(
             EntryDateUtc: entry.EntryDateUtc,
             StockAfter: ingredient.StockQuantity,
             AveragePurchasePriceAfter: ingredient.AveragePurchasePrice));
+    }
+
+    /// <summary>The supplier and delivery-note number, as one line, or nothing if neither was given.</summary>
+    private static string? DescribeDelivery(StockEntry entry)
+    {
+        string?[] parts = [entry.Supplier, entry.ReferenceNumber, entry.Note];
+        var written = parts.Where(part => !string.IsNullOrWhiteSpace(part)).ToArray();
+
+        return written.Length == 0 ? null : string.Join(" · ", written);
     }
 }

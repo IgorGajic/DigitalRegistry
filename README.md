@@ -50,7 +50,8 @@ npx ng serve master
 ```
 
 `projects/shared` je Angular biblioteka: `pos` i `master` je koriste kroz `dist/`, pa mora da bude
-sagrađena pre prvog `ng serve`.
+sagrađena pre prvog `ng serve`. Ako je gradiš dok `ng serve` već radi, restartuj `ng serve` — watcher
+ostane na starim tipovima i prijavljuje greške kojih u kodu nema.
 
 ### Drugi konekcioni string
 
@@ -116,8 +117,16 @@ Backend/
 Frontend/
   projects/pos                       kasa
   projects/master                    administracija platforme
-  projects/shared                    auth, interceptori, modeli, SignalR, formatiranje
+  projects/shared                    auth, interceptori, modeli, formatiranje
+  projects/shared/ui                 dijalozi i grafikon (vuku Angular Material)
+  projects/shared/realtime           SignalR hub konekcija
 ```
+
+Biblioteka ima tri ulazne tačke, i to iz jednog razloga: obe aplikacije uvoze iz `shared` pre nego
+što znaju ko gleda, pa je sve što stoji tu u njihovom **početnom** bundle-u. Bundler deli chunkove
+po izvornom fajlu a biblioteka je jedan fajl, tako da je ispred ekrana za prijavu stajao i ceo
+SignalR i ceo Material dijalog sloj — ni jedno ni drugo prijavi ne treba. Razdvajanje je skinulo
+224 kB sa kase i 161 kB sa mastera.
 
 Realtime ide preko dva huba: `/hubs/kitchen` (kuhinja) i `/hubs/order` (sala).
 
@@ -141,9 +150,10 @@ npx ng test pos --watch=false
 `dotnet test` ne traži ništa instalirano: unit testovi rade nad domenom i handlerima, a integracioni
 dižu ceo host u procesu nad in-memory bazom sa demo podacima.
 
-Frontend testovi (vitest) pokrivaju ono što se ne vidi na ekranu: interceptore (402 nasuprot 401
-nasuprot sesije stola), sesiju stola iz QR koda, pravila boja na sali, i validaciju unosa
-rezervacije.
+Frontend testovi (vitest, 82 — 53 `shared` + 29 `pos`) pokrivaju ono što se ne vidi na ekranu:
+interceptore (402 nasuprot 401 nasuprot sesije stola), prevod poruka sa backenda, srpsku množinu i
+proteklo vreme, geometriju grafikona, sesiju stola iz QR koda, pravila boja na sali, i validaciju
+unosa rezervacije. Backend ih ima 208 (131 domen, 51 aplikacija, 26 integracionih).
 
 Uz to, dve skripte rade protiv **pokrenutih** API-ja i žive baze:
 

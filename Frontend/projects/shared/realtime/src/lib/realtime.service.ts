@@ -1,8 +1,7 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 
-import { AuthService } from '../auth/auth.service';
-import { API_BASE_URL } from '../config/tokens';
+import { API_BASE_URL, AuthService } from 'shared';
 
 /** What the kitchen and floor hubs push. Payloads are loose because the screens only need a nudge. */
 export type RealtimeEvent =

@@ -1,5 +1,9 @@
 /*
  * What the till and the master application may use from this library.
+ *
+ * Deliberately free of anything that draws: both applications import from here before they have a
+ * session — interceptors, tokens, guards — so whatever sits here is in their initial bundle.
+ * Components live in `shared/ui`, the hub connection in `shared/realtime`.
  */
 
 export * from './lib/config/tokens';
@@ -14,15 +18,8 @@ export * from './lib/http/interceptors';
 export * from './lib/http/loading';
 export * from './lib/http/messages';
 
-export * from './lib/dialogs/prompt.dialog';
-export * from './lib/dialogs/confirm.dialog';
-
 export * from './lib/api/till-api.service';
 export * from './lib/api/platform-api.service';
 
 export * from './lib/format/labels';
 export * from './lib/format/dates';
-
-export * from './lib/charts/bar-chart';
-
-export * from './lib/realtime/realtime.service';

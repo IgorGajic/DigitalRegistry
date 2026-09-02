@@ -1,12 +1,14 @@
 import { Component, computed, input } from '@angular/core';
 import {
-  BarChart,
-  BarPoint,
   DailyTurnoverDto,
   PaymentMethod,
   billsLabel,
   paymentMethodLabels,
 } from 'shared';
+import {
+  BarChart,
+  BarPoint,
+} from 'shared/ui';
 
 /** A slice of the period's takings, for the composition meter. */
 interface Slice {
