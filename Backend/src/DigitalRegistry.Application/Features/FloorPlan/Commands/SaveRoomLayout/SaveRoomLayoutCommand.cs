@@ -16,7 +16,13 @@ namespace DigitalRegistry.Application.Features.FloorPlan.Commands.SaveRoomLayout
 /// list is taken out of it. That is what lets the editor remove a table from a room by dragging it
 /// away, without a second endpoint for the removal.
 /// </para>
+/// <para>
+/// Fixtures follow the same one-request rule but a different absence rule: one left out of the list
+/// is <em>deleted</em>, not unassigned. A table outlives its room because it carries order history;
+/// a landmark drawn nowhere is nothing at all, and there is no screen that could list it.
+/// </para>
 /// </remarks>
 public record SaveRoomLayoutCommand(
     Guid RoomId,
-    IReadOnlyList<TableLayoutRequest> Tables) : IRequest<Result<RoomDto>>;
+    IReadOnlyList<TableLayoutRequest> Tables,
+    IReadOnlyList<FixtureLayoutRequest> Fixtures) : IRequest<Result<RoomDto>>;

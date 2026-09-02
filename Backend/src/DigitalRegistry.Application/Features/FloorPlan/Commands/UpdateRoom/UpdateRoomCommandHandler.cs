@@ -44,6 +44,22 @@ public class UpdateRoomCommandHandler(IDigitalRegistryDbContext context)
                 + "room. Move it first, or choose a larger area.");
         }
 
+        // Landmarks strand exactly as tables do, and a bar dragged off the edge is no easier to
+        // retrieve than a table. Reported by label, because that is what the owner sees on it.
+        var strandedFixture = await context.RoomFixtures
+            .Where(fixture => fixture.RoomId == room.Id)
+            .Where(fixture => fixture.PositionX + fixture.Width > request.CanvasWidth
+                              || fixture.PositionY + fixture.Height > request.CanvasHeight)
+            .Select(fixture => fixture.Label)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (strandedFixture is not null)
+        {
+            return Result<RoomDto>.Conflict(
+                $"\"{strandedFixture}\" would fall outside a {request.CanvasWidth}×"
+                + $"{request.CanvasHeight} room. Move it first, or choose a larger area.");
+        }
+
         room.Name = name;
         room.DisplayOrder = request.DisplayOrder;
         room.CanvasWidth = request.CanvasWidth;
@@ -57,6 +73,7 @@ public class UpdateRoomCommandHandler(IDigitalRegistryDbContext context)
             room.DisplayOrder,
             room.CanvasWidth,
             room.CanvasHeight,
+            [],
             []));
     }
 }

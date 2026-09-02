@@ -37,6 +37,7 @@ public class CreateRoomCommandHandler(IDigitalRegistryDbContext context)
             room.DisplayOrder,
             room.CanvasWidth,
             room.CanvasHeight,
+            [],
             []));
     }
 }

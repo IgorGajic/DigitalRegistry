@@ -54,6 +54,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityR
 
     public DbSet<Room> Rooms => Set<Room>();
 
+    public DbSet<RoomFixture> RoomFixtures => Set<RoomFixture>();
+
     public DbSet<Table> Tables => Set<Table>();
 
     public DbSet<Reservation> Reservations => Set<Reservation>();

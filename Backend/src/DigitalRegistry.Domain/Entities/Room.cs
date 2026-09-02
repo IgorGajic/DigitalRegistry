@@ -31,4 +31,7 @@ public class Room : BaseEntity, IRestaurantScoped
     public int CanvasHeight { get; set; } = DefaultCanvasHeight;
 
     public ICollection<Table> Tables { get; set; } = new List<Table>();
+
+    /// <summary>The landmarks drawn in this room — the bar, the restrooms, the way in.</summary>
+    public ICollection<RoomFixture> Fixtures { get; set; } = new List<RoomFixture>();
 }

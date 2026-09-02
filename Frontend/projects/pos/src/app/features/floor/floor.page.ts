@@ -1,14 +1,26 @@
 import { CurrencyPipe } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterRenderEffect,
+  computed,
+  effect,
+  inject,
+  signal,
+} from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { Router } from '@angular/router';
 import {
+  FixtureShape,
+  FixtureTone,
   FloorPlanDto,
   FloorPlanTableDto,
   RoomDto,
+  RoomFixtureDto,
   TableStatus,
   TillApiService,
   elapsedSince,
@@ -25,6 +37,20 @@ import { RealtimeService } from 'shared/realtime';
  * Colour carries the state, because a waiter crossing the room needs to read it at a glance rather
  * than compare numbers.
  */
+/** Breathing room under the plan, so it does not sit flush against the bottom of the window. */
+const BOTTOM_GUTTER = 16;
+
+/**
+ * Never shrink the room below this, whatever the arithmetic says.
+ *
+ * Only a guard against absurd viewports, where the sum could reach zero or go negative and there
+ * would be no plan at all. It is deliberately lower than any height worth working at: every pixel
+ * this floor is raised is a pixel the page scrolls on a window that short, and not scrolling is the
+ * point. Measured at 520 px of viewport — a small laptop window — a floor of 260 was itself the
+ * whole overflow.
+ */
+const MIN_CANVAS_HEIGHT = 200;
+
 @Component({
   selector: 'pos-floor',
   imports: [CurrencyPipe, MatButtonModule, MatIconModule, MatProgressBarModule, MatTabsModule],
@@ -71,7 +97,34 @@ import { RealtimeService } from 'shared/realtime';
                   <div
                     class="floor__canvas"
                     [style.aspect-ratio]="room.canvasWidth + ' / ' + room.canvasHeight"
+                    [style.max-width.px]="fitWidth(room)"
                   >
+                    <!--
+                      Landmarks first, so they paint under the tables. Drawn as plain divs and
+                      hidden from assistive technology on purpose: a waiter must be able to open a
+                      table and must never be able to open the toilet, and a screen reader reading
+                      out the furniture would bury the tables that matter.
+
+                      Unlabelled here, and named only in the editor. Staff know their own room —
+                      the bar is the bar — so on the working screen the words would be repeating
+                      what the shape and its place already say, in the one place where every other
+                      piece of text is a table number or an amount owed.
+                    -->
+                    @for (fixture of room.fixtures; track fixture.id) {
+                      <div
+                        class="floor__fixture"
+                        [class.floor__fixture--round]="fixture.shape === FixtureShape.Ellipse"
+                        [style.left.%]="percent(fixture.positionX, room.canvasWidth)"
+                        [style.top.%]="percent(fixture.positionY, room.canvasHeight)"
+                        [style.width.%]="percent(fixture.width, room.canvasWidth)"
+                        [style.height.%]="percent(fixture.height, room.canvasHeight)"
+                        [style.transform]="'rotate(' + fixture.rotation + 'deg)'"
+                        [style.background]="toneFill(fixture)"
+                        [style.border-color]="toneLine(fixture)"
+                        aria-hidden="true"
+                      ></div>
+                    }
+
                     @for (table of room.tables; track table.id) {
                       <button
                         type="button"
@@ -156,6 +209,7 @@ import { RealtimeService } from 'shared/realtime';
     .floor__canvas {
       position: relative;
       width: 100%;
+      margin-inline: auto;
       background: var(--mat-sys-surface);
       border: 1px solid var(--mat-sys-outline-variant);
       border-radius: var(--dr-radius);
@@ -164,6 +218,26 @@ import { RealtimeService } from 'shared/realtime';
         linear-gradient(90deg, var(--mat-sys-outline-variant) 1px, transparent 1px);
       background-size: 5% 5%;
       overflow: hidden;
+    }
+
+    /* Architecture, not state. Quiet fill, thin line, no shadow — everything the tables use to
+       demand attention is deliberately absent here. */
+    .floor__fixture {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid;
+      border-radius: 4px;
+      padding: 2px;
+      overflow: hidden;
+      color: var(--dr-tone-ink);
+      /* Never intercepts a tap meant for a table sitting on top of it. */
+      pointer-events: none;
+    }
+
+    .floor__fixture--round {
+      border-radius: 50%;
     }
 
     .floor__table {
@@ -245,6 +319,8 @@ export class FloorPage {
   protected readonly loading = signal(false);
   protected readonly activeRoom = signal(0);
 
+  protected readonly FixtureShape = FixtureShape;
+
   protected readonly legend = [
     { status: TableStatus.Available, colour: 'var(--dr-free)' },
     { status: TableStatus.Occupied, colour: 'var(--dr-occupied)' },
@@ -252,6 +328,24 @@ export class FloorPage {
   ];
 
   protected readonly rooms = computed<RoomDto[]>(() => this.plan()?.rooms ?? []);
+
+  private readonly host = inject(ElementRef<HTMLElement>);
+
+  /**
+   * How tall the room may be drawn without pushing the page into a scrollbar.
+   *
+   * This screen is glanced at, not read: a waiter crossing the floor looks up and finds a table.
+   * A room that runs off the bottom turns that glance into a scroll, and the table they wanted is
+   * the one below the fold. So the plan is fitted to the window instead of the window to the plan.
+   *
+   * Measured rather than assumed. What sits above the canvas — toolbar, heading, tabs, legend —
+   * changes height with the viewport, and the legend wraps on a narrow one; a constant subtracted
+   * from the window height would be wrong the first time any of that moved, and wrong silently.
+   */
+  private readonly available = signal(0);
+
+  /** Bumped by anything that can change the measurement but is not itself state on this page. */
+  private readonly viewportTick = signal(0);
 
   constructor() {
     this.reload();
@@ -264,6 +358,23 @@ export class FloorPage {
         this.reload();
       }
     });
+
+    // Re-measured after the browser has laid the page out, and again whenever anything that could
+    // move the canvas changes: a different room, a plan that arrived, a resized window. Reading in
+    // the render phase is the only point at which the box on screen is the box being measured.
+    afterRenderEffect({
+      read: () => {
+        this.plan();
+        this.activeRoom();
+        this.viewportTick();
+        this.measure();
+      },
+    });
+
+    const remeasure = () => this.viewportTick.update((tick) => tick + 1);
+
+    window.addEventListener('resize', remeasure);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('resize', remeasure));
   }
 
   protected reload(): void {
@@ -284,6 +395,56 @@ export class FloorPage {
 
   protected goToLayout(): void {
     void this.router.navigate(['/raspored']);
+  }
+
+  /**
+   * The widest the room may be drawn and still fit the height available.
+   *
+   * The canvas keeps the room's aspect ratio, so capping its width is how its height is capped:
+   * width = height x ratio. Returns null before the first measurement, which leaves the canvas at
+   * its natural full width for that one frame rather than collapsing it to nothing.
+   */
+  protected fitWidth(room: RoomDto): number | null {
+    const height = this.available();
+
+    if (height <= 0 || room.canvasHeight <= 0) {
+      return null;
+    }
+
+    return Math.round((height * room.canvasWidth) / room.canvasHeight);
+  }
+
+  /**
+   * Reads how much room is left for the plan.
+   *
+   * Everything below the canvas is measured as one span — from its bottom edge to the bottom of the
+   * page — rather than itemised. The note about unplaced tables comes and goes, and its margins are
+   * a paragraph's, not this screen's; adding up the parts we happen to know about is how a reserve
+   * ends up a little short and the page scrolls by exactly that much. The span does not care what
+   * is in it, and it does not move when the canvas resizes, because both edges move with it.
+   */
+  private measure(): void {
+    const element = this.host.nativeElement as HTMLElement;
+    const canvas = element.querySelector('.floor__canvas');
+
+    if (!canvas) {
+      return;
+    }
+
+    const box = canvas.getBoundingClientRect();
+    const below = Math.max(0, element.getBoundingClientRect().bottom - box.bottom);
+
+    const next = Math.max(
+      MIN_CANVAS_HEIGHT,
+      Math.round(window.innerHeight - box.top - below - BOTTOM_GUTTER),
+    );
+
+    // Rounded, and only taken when it actually moves. Narrowing the canvas can shorten the page
+    // enough to retire a scrollbar, which changes the viewport, which would re-measure: without a
+    // dead band the two could trade places forever.
+    if (Math.abs(next - this.available()) > 1) {
+      this.available.set(next);
+    }
   }
 
   protected percent(value: number, extent: number): number {
@@ -313,6 +474,40 @@ export class FloorPage {
         return 'var(--dr-out-of-service-bg)';
       default:
         return 'var(--dr-free-bg)';
+    }
+  }
+
+  /**
+   * A fixture's fill and outline, resolved from its named tone.
+   *
+   * Named rather than stored as a colour so the venue's chosen theme can restate it. The mapping is
+   * a switch and not a lookup object for the same reason the table colours are: an exhaustive switch
+   * fails to compile when a tone is added, and a silent default would draw the new one as stone.
+   */
+  protected toneFill(fixture: RoomFixtureDto): string {
+    switch (fixture.tone) {
+      case FixtureTone.Wood:
+        return 'var(--dr-tone-wood)';
+      case FixtureTone.Slate:
+        return 'var(--dr-tone-slate)';
+      case FixtureTone.Glass:
+        return 'var(--dr-tone-glass)';
+      default:
+        return 'var(--dr-tone-stone)';
+    }
+  }
+
+  /** @see toneFill */
+  protected toneLine(fixture: RoomFixtureDto): string {
+    switch (fixture.tone) {
+      case FixtureTone.Wood:
+        return 'var(--dr-tone-wood-line)';
+      case FixtureTone.Slate:
+        return 'var(--dr-tone-slate-line)';
+      case FixtureTone.Glass:
+        return 'var(--dr-tone-glass-line)';
+      default:
+        return 'var(--dr-tone-stone-line)';
     }
   }
 

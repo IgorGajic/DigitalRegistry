@@ -112,6 +112,14 @@ interface NavItem {
       display: flex;
       gap: 2px;
       overflow-x: auto;
+      /*
+        Not redundant. Setting overflow-x to anything but visible makes overflow-y compute to auto
+        as well, so the bar became a vertical scrolling box too — and a 40 px row of 40 px buttons
+        overflows it by a hair. Windows drew the scrollbar for that: two stray triangles sitting in
+        the middle of the toolbar on every screen of the till, at every width, beside the last menu
+        item, where they read as a broken control. They also ate 15 px of the bar.
+      */
+      overflow-y: hidden;
     }
 
     .shell__link--active {

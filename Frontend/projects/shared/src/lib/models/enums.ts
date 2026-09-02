@@ -28,6 +28,42 @@ export enum TableShape {
   Square = 3,
 }
 
+/**
+ * What a room fixture is — the things drawn on a floor plan that are not tables.
+ *
+ * The kind carries no rule. It seeds the label, size and tone the editor starts a new fixture with,
+ * for the handful of landmarks every venue draws.
+ */
+export enum FixtureKind {
+  Bar = 1,
+  Restroom = 2,
+  Entrance = 3,
+  Kitchen = 4,
+  Stairs = 5,
+  Partition = 6,
+  Other = 7,
+}
+
+/** A rectangle with equal sides is a square; an ellipse with equal sides is a circle. */
+export enum FixtureShape {
+  Rectangle = 1,
+  Ellipse = 2,
+}
+
+/**
+ * The colour a fixture is drawn in, named rather than given as a value.
+ *
+ * On the floor screen colour means status, so the set a fixture may take is closed — a free picker
+ * would sooner or later produce a bar in the shade of an occupied table. Naming it also lets the
+ * venue's chosen theme resolve it, which a stored colour value could not follow.
+ */
+export enum FixtureTone {
+  Wood = 1,
+  Slate = 2,
+  Stone = 3,
+  Glass = 4,
+}
+
 export enum OrderStatus {
   Open = 1,
   InPreparation = 2,

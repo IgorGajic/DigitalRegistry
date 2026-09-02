@@ -14,6 +14,10 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
+  FixtureKind,
+  FixtureLayoutRequest,
+  FixtureShape,
+  FixtureTone,
   FloorPlanDto,
   FloorPlanTableDto,
   LoadingState,
@@ -21,6 +25,9 @@ import {
   TableShape,
   TableLayoutRequest,
   TillApiService,
+  fixtureDefaults,
+  fixtureKindLabels,
+  fixtureToneLabels,
   seatsLabel,
 } from 'shared';
 import {
@@ -42,6 +49,27 @@ interface Placed {
   width: number;
   height: number;
   shape: TableShape;
+}
+
+/**
+ * A fixture being arranged.
+ *
+ * `id` is null until the room is saved, so it cannot be the identity the editor tracks by — a newly
+ * drawn bar would share `null` with every other new one and Angular would confuse them mid-drag.
+ * `key` is a client-side handle that exists for exactly as long as this editing session.
+ */
+interface PlacedFixture {
+  key: string;
+  id: string | null;
+  kind: FixtureKind;
+  label: string;
+  shape: FixtureShape;
+  tone: FixtureTone;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
 }
 
 /**
@@ -131,6 +159,27 @@ interface Placed {
             class="ed__canvas"
             [style.aspect-ratio]="current.canvasWidth + ' / ' + current.canvasHeight"
           >
+            <!-- Under the tables, always. A bar drawn over a table would hide what it owes. -->
+            @for (item of fixtures(); track item.key) {
+              <div
+                cdkDrag
+                cdkDragBoundary=".ed__canvas"
+                (cdkDragEnded)="movedFixture(item, $event)"
+                class="ed__fixture"
+                [class.ed__fixture--round]="item.shape === FixtureShape.Ellipse"
+                [class.ed__fixture--selected]="selectedFixtureKey() === item.key"
+                [attr.data-tone]="item.tone"
+                [style.left.%]="percent(item.x, current.canvasWidth)"
+                [style.top.%]="percent(item.y, current.canvasHeight)"
+                [style.width.%]="percent(item.width, current.canvasWidth)"
+                [style.height.%]="percent(item.height, current.canvasHeight)"
+                [style.transform]="'rotate(' + item.rotation + 'deg)'"
+                (click)="selectFixture(item.key)"
+              >
+                <span class="ed__fixture-label">{{ item.label }}</span>
+              </div>
+            }
+
             @for (item of placed(); track item.table.id) {
               <div
                 cdkDrag
@@ -143,7 +192,7 @@ interface Placed {
                 [style.top.%]="percent(item.y, current.canvasHeight)"
                 [style.width.%]="percent(item.width, current.canvasWidth)"
                 [style.height.%]="percent(item.height, current.canvasHeight)"
-                (click)="selectedId.set(item.table.id)"
+                (click)="selectTable(item.table.id)"
               >
                 <span class="ed__number">{{ item.table.tableNumber }}</span>
                 <span class="ed__seats">{{ item.table.capacity }}</span>
@@ -152,6 +201,101 @@ interface Placed {
           </div>
 
           <aside class="ed__side">
+            <mat-card>
+              <mat-card-header>
+                <mat-card-title>Dodaj element</mat-card-title>
+                <mat-card-subtitle>Šank, toalet i ostalo što nije sto</mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content class="ed__kinds">
+                @for (kind of fixtureKinds; track kind) {
+                  <button mat-stroked-button (click)="addFixture(kind)">
+                    {{ fixtureKindLabels[kind] }}
+                  </button>
+                }
+              </mat-card-content>
+            </mat-card>
+
+            @if (selectedFixture(); as item) {
+              <mat-card>
+                <mat-card-header>
+                  <mat-card-title>Odabrani element</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <mat-form-field appearance="outline" class="ed__field">
+                    <mat-label>Naziv</mat-label>
+                    <input
+                      matInput
+                      maxlength="30"
+                      [ngModel]="item.label"
+                      (ngModelChange)="updateFixture(item, { label: $event })"
+                      name="fixtureLabel"
+                    />
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="ed__field">
+                    <mat-label>Boja</mat-label>
+                    <mat-select
+                      [ngModel]="item.tone"
+                      (ngModelChange)="updateFixture(item, { tone: $event })"
+                      name="fixtureTone"
+                    >
+                      @for (tone of fixtureTones; track tone) {
+                        <mat-option [value]="tone">{{ fixtureToneLabels[tone] }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-button-toggle-group
+                    [value]="item.shape"
+                    (change)="updateFixture(item, { shape: $any($event).value })"
+                  >
+                    <mat-button-toggle [value]="FixtureShape.Rectangle">Pravougaonik</mat-button-toggle>
+                    <mat-button-toggle [value]="FixtureShape.Ellipse">Krug</mat-button-toggle>
+                  </mat-button-toggle-group>
+
+                  <label class="ed__slider-label">Širina: {{ item.width }}</label>
+                  <mat-slider min="20" max="1000" step="10" discrete>
+                    <input
+                      matSliderThumb
+                      [value]="item.width"
+                      (valueChange)="updateFixture(item, { width: $event })"
+                    />
+                  </mat-slider>
+
+                  <label class="ed__slider-label">Visina: {{ item.height }}</label>
+                  <mat-slider min="20" max="1000" step="10" discrete>
+                    <input
+                      matSliderThumb
+                      [value]="item.height"
+                      (valueChange)="updateFixture(item, { height: $event })"
+                    />
+                  </mat-slider>
+
+                  @if (item.shape === FixtureShape.Rectangle) {
+                    <div class="ed__rotate">
+                      <button mat-stroked-button (click)="rotateFixture(item, -45)">
+                        <mat-icon>rotate_left</mat-icon>
+                        45°
+                      </button>
+                      <button mat-stroked-button (click)="rotateFixture(item, 45)">
+                        <mat-icon>rotate_right</mat-icon>
+                        45°
+                      </button>
+                    </div>
+
+                    @if (item.rotation) {
+                      <p class="dr-muted ed__rotation">Zaokrenut {{ item.rotation }}°</p>
+                    }
+                  }
+
+                  <button mat-stroked-button color="warn" (click)="removeFixture(item)">
+                    <mat-icon>delete_forever</mat-icon>
+                    Ukloni element
+                  </button>
+                </mat-card-content>
+              </mat-card>
+            }
+
             <mat-card>
               <mat-card-header>
                 <mat-card-title>Odabrani sto</mat-card-title>
@@ -292,6 +436,103 @@ interface Placed {
       overflow: hidden;
     }
 
+    /* The same quiet treatment the floor screen gives them, plus a handle: here they are dragged,
+       there they are scenery. Tones come from the one place they are defined, so the editor cannot
+       drift from what a waiter will actually see. */
+    .ed__fixture {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid;
+      border-radius: 4px;
+      padding: 2px;
+      overflow: hidden;
+      cursor: move;
+      user-select: none;
+      color: var(--dr-tone-ink);
+    }
+
+    .ed__fixture[data-tone='1'] {
+      background: var(--dr-tone-wood);
+      border-color: var(--dr-tone-wood-line);
+    }
+
+    .ed__fixture[data-tone='2'] {
+      background: var(--dr-tone-slate);
+      border-color: var(--dr-tone-slate-line);
+    }
+
+    .ed__fixture[data-tone='3'] {
+      background: var(--dr-tone-stone);
+      border-color: var(--dr-tone-stone-line);
+    }
+
+    .ed__fixture[data-tone='4'] {
+      background: var(--dr-tone-glass);
+      border-color: var(--dr-tone-glass-line);
+    }
+
+    .ed__fixture--round {
+      border-radius: 50%;
+    }
+
+    .ed__fixture--selected {
+      outline: 2px solid var(--mat-sys-tertiary);
+      outline-offset: 2px;
+    }
+
+    .ed__fixture-label {
+      font-family: var(--dr-font-brand);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+
+    /* A wrapping row of one-word buttons, not a column: seven of them stacked would push the
+       selected-item panel below the fold on the screen where it is being used.
+       The width override has to out-specify the rule further down that stacks the *action* buttons
+       on purpose — those are sentences, these are single words. */
+    .ed__kinds {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .ed__side mat-card-content.ed__kinds > button {
+      width: auto;
+      margin-top: 0;
+    }
+
+    .ed__field {
+      width: 100%;
+    }
+
+    /* The two turns sit side by side: they are a pair, and reading one above the other would
+       suggest they do different things rather than opposite ones. */
+    .ed__rotate {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .ed__side mat-card-content .ed__rotate > button {
+      flex: 1;
+      width: auto;
+      margin-top: 0;
+    }
+
+    .ed__rotation {
+      margin: 6px 0 0;
+      font-size: 0.8rem;
+    }
+
     .ed__table {
       position: absolute;
       display: flex;
@@ -398,6 +639,15 @@ export class LayoutEditorPage {
   protected readonly placed = signal<Placed[]>([]);
   protected readonly unplaced = signal<FloorPlanTableDto[]>([]);
   protected readonly selectedId = signal<string | null>(null);
+  protected readonly fixtures = signal<PlacedFixture[]>([]);
+
+  /**
+   * Which fixture is being edited, if any.
+   *
+   * Selection is exclusive with {@link selectedId}: the side panel shows one thing, and an owner
+   * pressing delete needs to be in no doubt which of the two it applies to.
+   */
+  protected readonly selectedFixtureKey = signal<string | null>(null);
   protected readonly dirty = signal(false);
 
   /** Printed on every code, so a sheet found loose on a desk says which venue it belongs to. */
@@ -415,6 +665,21 @@ export class LayoutEditorPage {
   protected readonly selected = computed<Placed | null>(
     () => this.placed().find((item) => item.table.id === this.selectedId()) ?? null,
   );
+
+  protected readonly selectedFixture = computed<PlacedFixture | null>(
+    () => this.fixtures().find((item) => item.key === this.selectedFixtureKey()) ?? null,
+  );
+
+  protected readonly fixtureKinds = Object.values(FixtureKind)
+    .filter((value): value is FixtureKind => typeof value === 'number');
+
+  protected readonly fixtureTones = Object.values(FixtureTone)
+    .filter((value): value is FixtureTone => typeof value === 'number');
+
+  protected readonly FixtureKind = FixtureKind;
+  protected readonly FixtureShape = FixtureShape;
+  protected readonly fixtureKindLabels = fixtureKindLabels;
+  protected readonly fixtureToneLabels = fixtureToneLabels;
 
   constructor() {
     this.load();
@@ -508,7 +773,116 @@ export class LayoutEditorPage {
     event.source.reset();
 
     this.update(item, { x: Math.round(x), y: Math.round(y) });
-    this.selectedId.set(item.table.id);
+    this.selectTable(item.table.id);
+  }
+
+  /** Same arithmetic as {@link moved}, against the fixture layer. */
+  protected movedFixture(item: PlacedFixture, event: CdkDragEnd): void {
+    const room = this.room();
+    const element = this.canvas()?.nativeElement;
+
+    if (!room || !element) {
+      return;
+    }
+
+    const scale = element.clientWidth / room.canvasWidth;
+    const shift = event.distance;
+
+    const x = Math.max(0, Math.min(room.canvasWidth - item.width, item.x + shift.x / scale));
+    const y = Math.max(0, Math.min(room.canvasHeight - item.height, item.y + shift.y / scale));
+
+    event.source.reset();
+
+    this.updateFixture(item, { x: Math.round(x), y: Math.round(y) });
+    this.selectFixture(item.key);
+  }
+
+  protected selectTable(id: string): void {
+    this.selectedId.set(id);
+    this.selectedFixtureKey.set(null);
+  }
+
+  protected selectFixture(key: string): void {
+    this.selectedFixtureKey.set(key);
+    this.selectedId.set(null);
+  }
+
+  /**
+   * Draws a new fixture of the given kind, near the top-left where there is usually room.
+   *
+   * The kind seeds the label, shape, tone and size; all four are then editable in the side panel.
+   * It is placed rather than dragged in because the canvas scales to the viewport and a drop point
+   * computed from a palette outside it would land somewhere the owner did not aim.
+   */
+  protected addFixture(kind: FixtureKind): void {
+    const room = this.room();
+
+    if (!room) {
+      return;
+    }
+
+    const defaults = fixtureDefaults[kind];
+
+    // Stagger, so drawing three in a row does not stack them into one apparent shape.
+    const offset = this.fixtures().length % 6;
+
+    const width = Math.min(defaults.width, room.canvasWidth);
+    const height = Math.min(defaults.height, room.canvasHeight);
+
+    this.fixtures.update((current) => [
+      ...current,
+      {
+        key: `new-${Date.now()}-${current.length}`,
+        id: null,
+        kind,
+        label: defaults.label,
+        shape: defaults.shape,
+        tone: defaults.tone,
+        x: Math.min(40 + offset * 24, Math.max(0, room.canvasWidth - width)),
+        y: Math.min(40 + offset * 24, Math.max(0, room.canvasHeight - height)),
+        width,
+        height,
+        rotation: 0,
+      },
+    ]);
+
+    this.dirty.set(true);
+    this.selectFixture(this.fixtures()[this.fixtures().length - 1].key);
+  }
+
+  protected updateFixture(item: PlacedFixture, patch: Partial<PlacedFixture>): void {
+    this.fixtures.update((current) =>
+      current.map((candidate) => (candidate.key === item.key ? { ...candidate, ...patch } : candidate)),
+    );
+
+    this.dirty.set(true);
+  }
+
+  /**
+   * Turns a fixture by a step, left or right.
+   *
+   * Offered only on rectangles, because that is the only shape a turn changes: an ellipse of equal
+   * sides is a circle, and one of unequal sides is the same ellipse every 180°.
+   *
+   * Wrapped into 0–359 rather than allowed to run negative or past a full turn. The API accepts
+   * that range and nothing else, and "-45" and "315" are the same bar drawn the same way — letting
+   * both exist would only give the same arrangement two spellings.
+   */
+  protected rotateFixture(item: PlacedFixture, degrees: number): void {
+    this.updateFixture(item, { rotation: (item.rotation + degrees + 360) % 360 });
+  }
+
+  /**
+   * Takes a fixture off the plan.
+   *
+   * No confirmation: nothing is lost that cannot be redrawn in one click, and the removal is not
+   * written until the arrangement is saved. Asking here would be the kind of prompt that teaches
+   * people to dismiss prompts.
+   */
+  protected removeFixture(item: PlacedFixture): void {
+    this.fixtures.update((current) => current.filter((candidate) => candidate.key !== item.key));
+    this.selectedFixtureKey.set(null);
+    this.dirty.set(true);
   }
 
   protected setShape(item: Placed, shape: TableShape): void {
@@ -790,7 +1164,22 @@ export class LayoutEditorPage {
       rotation: item.table.rotation,
     }));
 
-    this.loading.track(this.api.saveRoomLayout(room.id, tables)).subscribe(() => {
+    const fixtures: FixtureLayoutRequest[] = this.fixtures().map((item, index) => ({
+      id: item.id,
+      kind: item.kind,
+      label: item.label.trim() || fixtureDefaults[item.kind].label,
+      shape: item.shape,
+      tone: item.tone,
+      positionX: item.x,
+      positionY: item.y,
+      width: item.width,
+      height: item.height,
+      rotation: item.rotation,
+      // Drawing order is the order they sit in the list, which is the order they were added.
+      displayOrder: index,
+    }));
+
+    this.loading.track(this.api.saveRoomLayout(room.id, tables, fixtures)).subscribe(() => {
       this.snackBar.open('Raspored je sačuvan.', 'U redu', { duration: 4000 });
       this.dirty.set(false);
       this.load();
@@ -848,8 +1237,25 @@ export class LayoutEditorPage {
 
     // Tables sitting in other rooms are not offered here: moving one between rooms means taking it
     // out of the first, which is a separate save.
+    this.fixtures.set(
+      (room?.fixtures ?? []).map((fixture) => ({
+        key: fixture.id,
+        id: fixture.id,
+        kind: fixture.kind,
+        label: fixture.label,
+        shape: fixture.shape,
+        tone: fixture.tone,
+        x: fixture.positionX,
+        y: fixture.positionY,
+        width: fixture.width,
+        height: fixture.height,
+        rotation: fixture.rotation,
+      })),
+    );
+
     this.unplaced.set(plan?.unplacedTables ?? []);
     this.selectedId.set(null);
+    this.selectedFixtureKey.set(null);
     this.dirty.set(false);
   }
 }

@@ -5,6 +5,9 @@
  * application cannot drift apart on what a licence or a restaurant looks like.
  */
 import {
+  FixtureKind,
+  FixtureShape,
+  FixtureTone,
   LicensePlan,
   LicenseStatus,
   OrderStatus,
@@ -74,6 +77,22 @@ export interface RoomDto {
   canvasWidth: number;
   canvasHeight: number;
   tables: FloorPlanTableDto[];
+  fixtures: RoomFixtureDto[];
+}
+
+/** Something drawn on the plan that is not a table: the bar, the restrooms, the way in. */
+export interface RoomFixtureDto {
+  id: string;
+  kind: FixtureKind;
+  label: string;
+  shape: FixtureShape;
+  tone: FixtureTone;
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+  rotation: number;
+  displayOrder: number;
 }
 
 export interface FloorPlanDto {
@@ -89,6 +108,26 @@ export interface TableLayoutRequest {
   height: number;
   shape: TableShape;
   rotation: number;
+}
+
+/**
+ * One fixture, as sent by the layout editor.
+ *
+ * `id` is null for one just drawn. Anything left out of the list is deleted — unlike a table left
+ * out, which is only taken out of the room.
+ */
+export interface FixtureLayoutRequest {
+  id: string | null;
+  kind: FixtureKind;
+  label: string;
+  shape: FixtureShape;
+  tone: FixtureTone;
+  positionX: number;
+  positionY: number;
+  width: number;
+  height: number;
+  rotation: number;
+  displayOrder: number;
 }
 
 export interface TableDto {

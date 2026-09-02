@@ -1,3 +1,4 @@
+using DigitalRegistry.Domain.Entities;
 using FluentValidation;
 
 namespace DigitalRegistry.Application.Features.FloorPlan.Commands.SaveRoomLayout;
@@ -36,5 +37,54 @@ public class SaveRoomLayoutCommandValidator : AbstractValidator<SaveRoomLayoutCo
         RuleFor(command => command.Tables)
             .Must(tables => tables.Select(table => table.TableId).Distinct().Count() == tables.Count)
             .WithMessage("The same table appears more than once in the layout.");
+
+        RuleFor(command => command.Fixtures).NotNull();
+
+        // A room is a drawing, not a database. This is not a correctness rule but a ceiling: it keeps
+        // one request from arriving with ten thousand rectangles in it.
+        RuleFor(command => command.Fixtures)
+            .Must(fixtures => fixtures.Count <= MaxFixturesPerRoom)
+            .WithMessage($"A room may hold at most {MaxFixturesPerRoom} fixtures.");
+
+        RuleForEach(command => command.Fixtures).ChildRules(fixture =>
+        {
+            fixture.RuleFor(entry => entry.Label)
+                .NotEmpty().WithMessage("A fixture needs a label.")
+                .MaximumLength(RoomFixture.MaxLabelLength);
+
+            fixture.RuleFor(entry => entry.PositionX)
+                .GreaterThanOrEqualTo(0).WithMessage("A fixture cannot sit outside the room.");
+            fixture.RuleFor(entry => entry.PositionY)
+                .GreaterThanOrEqualTo(0).WithMessage("A fixture cannot sit outside the room.");
+
+            // Wider than a table is allowed on purpose: a bar or a partition often runs the length
+            // of the room, which is the whole reason it is worth drawing.
+            fixture.RuleFor(entry => entry.Width)
+                .InclusiveBetween(RoomFixture.MinSize, 2000)
+                .WithMessage($"Fixture width must be between {RoomFixture.MinSize} and 2000.");
+            fixture.RuleFor(entry => entry.Height)
+                .InclusiveBetween(RoomFixture.MinSize, 2000)
+                .WithMessage($"Fixture height must be between {RoomFixture.MinSize} and 2000.");
+
+            fixture.RuleFor(entry => entry.Kind).IsInEnum();
+            fixture.RuleFor(entry => entry.Shape).IsInEnum();
+            fixture.RuleFor(entry => entry.Tone).IsInEnum();
+
+            fixture.RuleFor(entry => entry.Rotation)
+                .InclusiveBetween(0, 359).WithMessage("Rotation must be between 0 and 359 degrees.");
+        });
+
+        // A null id means "newly drawn", so only the saved ones are checked for duplicates.
+        RuleFor(command => command.Fixtures)
+            .Must(fixtures =>
+            {
+                var ids = fixtures.Where(entry => entry.Id.HasValue).Select(entry => entry.Id).ToList();
+
+                return ids.Distinct().Count() == ids.Count;
+            })
+            .WithMessage("The same fixture appears more than once in the layout.");
     }
+
+    /// <summary>Ceiling on how much can be drawn in one room.</summary>
+    private const int MaxFixturesPerRoom = 60;
 }

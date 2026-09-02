@@ -1,4 +1,7 @@
 import {
+  FixtureKind,
+  FixtureShape,
+  FixtureTone,
   LicensePlan,
   LicenseStatus,
   OrderStatus,
@@ -60,6 +63,90 @@ export const voidTypeLabels: Record<VoidType, string> = {
   [VoidType.Item]: 'Stavka',
   [VoidType.OpenOrder]: 'Otvoren račun',
   [VoidType.PaidOrder]: 'Plaćen račun',
+};
+
+export const fixtureKindLabels: Record<FixtureKind, string> = {
+  [FixtureKind.Bar]: 'Šank',
+  [FixtureKind.Restroom]: 'Toalet',
+  [FixtureKind.Entrance]: 'Ulaz',
+  [FixtureKind.Kitchen]: 'Kuhinja',
+  [FixtureKind.Stairs]: 'Stepenice',
+  [FixtureKind.Partition]: 'Zid',
+  [FixtureKind.Other]: 'Ostalo',
+};
+
+export const fixtureShapeLabels: Record<FixtureShape, string> = {
+  [FixtureShape.Rectangle]: 'Pravougaonik',
+  [FixtureShape.Ellipse]: 'Krug',
+};
+
+export const fixtureToneLabels: Record<FixtureTone, string> = {
+  [FixtureTone.Wood]: 'Drvo',
+  [FixtureTone.Slate]: 'Tamno siva',
+  [FixtureTone.Stone]: 'Svetlo siva',
+  [FixtureTone.Glass]: 'Staklo',
+};
+
+/**
+ * What a newly drawn fixture starts as.
+ *
+ * The kind seeds a label, a shape, a tone and a size, so placing a bar takes one click rather than
+ * five. Every one of them is then editable — a venue with two restrooms needs "WC M" and "WC Ž",
+ * and no list of kinds can know that.
+ */
+export const fixtureDefaults: Record<
+  FixtureKind,
+  { label: string; shape: FixtureShape; tone: FixtureTone; width: number; height: number }
+> = {
+  [FixtureKind.Bar]: {
+    label: 'Šank',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Wood,
+    width: 400,
+    height: 70,
+  },
+  [FixtureKind.Restroom]: {
+    label: 'Toalet',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Slate,
+    width: 140,
+    height: 120,
+  },
+  [FixtureKind.Entrance]: {
+    label: 'Ulaz',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Glass,
+    width: 120,
+    height: 30,
+  },
+  [FixtureKind.Kitchen]: {
+    label: 'Kuhinja',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Slate,
+    width: 260,
+    height: 160,
+  },
+  [FixtureKind.Stairs]: {
+    label: 'Stepenice',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Stone,
+    width: 120,
+    height: 200,
+  },
+  [FixtureKind.Partition]: {
+    label: 'Zid',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Stone,
+    width: 300,
+    height: 24,
+  },
+  [FixtureKind.Other]: {
+    label: 'Element',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Stone,
+    width: 160,
+    height: 100,
+  },
 };
 
 export const unitLabels: Record<UnitOfMeasure, string> = {

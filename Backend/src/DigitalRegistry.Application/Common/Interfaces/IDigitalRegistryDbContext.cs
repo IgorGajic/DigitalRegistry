@@ -29,6 +29,9 @@ public interface IDigitalRegistryDbContext
 
     DbSet<Room> Rooms { get; }
 
+    /// <summary>Landmarks drawn on a floor plan beside the tables — the bar, the restrooms.</summary>
+    DbSet<RoomFixture> RoomFixtures { get; }
+
     DbSet<Table> Tables { get; }
 
     DbSet<Reservation> Reservations { get; }

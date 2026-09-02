@@ -204,12 +204,18 @@ Ovo je ono što je ostalo, poređano po tome koliko košta ako se zaboravi.
       demo restorana, pa `/sala`, `/racuni`, `/magacin`, `/smene`, `/izvestaji`, `/jelovnik`,
       `/rezervacije` i `/zaposleni` — svaki na desktopu i na 820 px.
 
+      Drugi prolaz (posle commit-a `411f5f5`) pokrio je i ono što je prvi izostavio: `/sala/:id`
+      — najprometniji ekran kase — `/raspored`, `/gost/:token`, `/licenca` i master `/restorani/:id`.
+      Tu su prvi put uživo potvrđeni tooltipovi iz stavke 1 („Još jedno", „Storno stavke") i sve
+      kontrole iz stavke 12. Ekran licence te vraća na `/sala` kad je licenca važeća — namerno,
+      `license-expired.page.ts:146`.
+
       Prozor Chrome-a se nije dao smanjiti (bio je maksimizovan, `resize_window` javlja uspeh a
       `innerWidth` ostaje 1920), pa je uska širina dobijena kroz same-origin iframe od 820 px na
       istom hostu. Media upiti se računaju prema širini okvira, sesija se deli kroz `localStorage`,
       pa je to i dalje živa aplikacija sa živim backendom — samo u užem okviru.
 
-      **Strah je bio opravdan: našlo se pet stvari, i najveća je bila baš ono što je harness
+      **Strah je bio opravdan: našlo se sedam stvari, i najveća je bila baš ono što je harness
       propustio.** Vidi „Nađeno pri klikanju" ispod.
 
 - [x] **Rad nije komitovan.** Stoji u radnom stablu.
@@ -257,6 +263,16 @@ Ovo je ono što je ostalo, poređano po tome koliko košta ako se zaboravi.
 - [x] **`elapsedSince` nije prelazio u dane.** Račun otvoren prošlog ponedeljka pisao je
       „192 h 24 min". Otvoren račun preko noći je baš ono što konobar treba da primeti, a ovaj
       oblik ga je zakopao u računanje. Sada „8 dana", „1 dan 3 h". 6 testova.
+
+- [x] **Dve strelice su stajale u sredini toolbara kase, na svakom ekranu i na svakoj širini.**
+      Izgledale su kao pokvarena Material kontrola; nisu bile kontrola nego **skrol traka**.
+      `.shell__nav` ima `overflow-x: auto` da bi se meni skrolovao na tabletu — a po specifikaciji
+      `overflow-x` različit od `visible` tera i `overflow-y` na `auto`. Traka od 40 px sa dugmadima
+      od 40 px prelije se za dlaku, Windows nacrta vertikalnu traku sa strelicama, i ona pojede
+      15 px menija. Dodato `overflow-y: hidden`; horizontalni skrol na 820 px i dalje radi.
+
+      Ovo je bilo na svakom snimku ekrana kroz ceo prvi prolaz i nijednom nije prijavljeno — oko
+      ga pročita kao deo Material-a.
 
 ### Nedoslednosti — zatvorene
 

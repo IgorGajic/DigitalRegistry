@@ -48,6 +48,32 @@ html {
   --dr-reserved-bg: #fff3e0;
   --dr-out-of-service: #616161;
   --dr-out-of-service-bg: #eeeeee;
+
+  // Room fixtures — the bar, the restrooms, the way in.
+  //
+  // These are architecture, not state, and the floor plan has to keep saying so at a glance. Each
+  // one is therefore lower in chroma than any of the four above and carries no strong outline: a
+  // table is a saturated ring with a number in it, a fixture is a quiet block with a word on it.
+  //
+  // Wood is pulled towards brown and away from orange on purpose, because "reserved" is orange and
+  // it is the only status a warm fixture could be mistaken for. It is the ring that separates them
+  // — a reserved table is outlined in #ef6c00 — but the fill should not do the work alone.
+  //
+  // One ink for all four: every fill here is light, and the theme that changes the fills changes
+  // this with them.
+  --dr-tone-ink: #3b3b38;
+
+  --dr-tone-wood: #e6d8c3;
+  --dr-tone-wood-line: #a8875e;
+
+  --dr-tone-slate: #ccd3d8;
+  --dr-tone-slate-line: #78848c;
+
+  --dr-tone-stone: #e4e4e1;
+  --dr-tone-stone-line: #b4b4ae;
+
+  --dr-tone-glass: #d6e6ec;
+  --dr-tone-glass-line: #8fb3bf;
 }
 
 .dr-page {

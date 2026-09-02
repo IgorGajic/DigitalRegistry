@@ -3,8 +3,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { Router } from '@angular/router';
 import {
+  FixtureKind,
+  FixtureShape,
+  FixtureTone,
   FloorPlanDto,
   FloorPlanTableDto,
+  RoomFixtureDto,
   TableShape,
   TableStatus,
   TillApiService,
@@ -46,7 +50,41 @@ function table(overrides: Partial<FloorPlanTableDto> = {}): FloorPlanTableDto {
   };
 }
 
+function fixture_(overrides: Partial<RoomFixtureDto> = {}): RoomFixtureDto {
+  return {
+    id: 'f1',
+    kind: FixtureKind.Bar,
+    label: 'Šank',
+    shape: FixtureShape.Rectangle,
+    tone: FixtureTone.Wood,
+    positionX: 10,
+    positionY: 10,
+    width: 400,
+    height: 60,
+    rotation: 0,
+    displayOrder: 0,
+    ...overrides,
+  };
+}
+
 const emptyPlan: FloorPlanDto = { rooms: [], unplacedTables: [] };
+
+function planWith(fixtures: RoomFixtureDto[], tables: FloorPlanTableDto[] = []): FloorPlanDto {
+  return {
+    rooms: [
+      {
+        id: 'r1',
+        name: 'Sala',
+        displayOrder: 0,
+        canvasWidth: 1200,
+        canvasHeight: 800,
+        tables,
+        fixtures,
+      },
+    ],
+    unplacedTables: [],
+  };
+}
 
 describe('FloorPage', () => {
   let fixture: ComponentFixture<FloorPage>;
@@ -117,6 +155,81 @@ describe('FloorPage', () => {
     await fixture.whenStable();
 
     expect(floorPlan).toHaveBeenCalledTimes(2);
+  });
+
+  // ------------------------------------------------------------------------------- fixtures
+  //
+  // Landmarks exist so the plan reads like the room. They must never behave like a table: a waiter
+  // reaching for a bill must not be able to hit the toilet instead, and a screen reader working
+  // through the plan should meet tables, not furniture.
+
+  it('gives every tone its own fill, so none falls through to stone', () => {
+    const fill = page['toneFill'] as (f: RoomFixtureDto) => string;
+
+    expect(fill(fixture_({ tone: FixtureTone.Wood }))).toBe('var(--dr-tone-wood)');
+    expect(fill(fixture_({ tone: FixtureTone.Slate }))).toBe('var(--dr-tone-slate)');
+    expect(fill(fixture_({ tone: FixtureTone.Stone }))).toBe('var(--dr-tone-stone)');
+    expect(fill(fixture_({ tone: FixtureTone.Glass }))).toBe('var(--dr-tone-glass)');
+  });
+
+  it('pairs each fill with its own outline', () => {
+    const line = page['toneLine'] as (f: RoomFixtureDto) => string;
+
+    expect(line(fixture_({ tone: FixtureTone.Wood }))).toBe('var(--dr-tone-wood-line)');
+    expect(line(fixture_({ tone: FixtureTone.Slate }))).toBe('var(--dr-tone-slate-line)');
+    expect(line(fixture_({ tone: FixtureTone.Stone }))).toBe('var(--dr-tone-stone-line)');
+    expect(line(fixture_({ tone: FixtureTone.Glass }))).toBe('var(--dr-tone-glass-line)');
+  });
+
+  it('draws a fixture, and never as something that can be pressed', async () => {
+    floorPlan.mockReturnValue(of(planWith([fixture_()])));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    const drawn = fixture.nativeElement.querySelector('.floor__fixture') as HTMLElement;
+
+    expect(drawn).toBeTruthy();
+    expect(drawn.tagName).toBe('DIV');
+    expect(drawn.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('leaves the fixture unnamed here, however it is named in the editor', async () => {
+    floorPlan.mockReturnValue(of(planWith([fixture_({ label: 'Šank' })])));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    const drawn = fixture.nativeElement.querySelector('.floor__fixture') as HTMLElement;
+
+    // Every other word on this screen is a table number or an amount owed. Staff know their own
+    // room, so the label would only be repeating what the shape and its position already say.
+    expect(drawn.textContent?.trim()).toBe('');
+  });
+
+  it('caps the room by the height available, so the floor never falls below the fold', async () => {
+    const room = { canvasWidth: 1200, canvasHeight: 800 } as never;
+    // Bound, unlike the colour helpers above: this one reads a signal off the component.
+    const fit = (page['fitWidth'] as (r: unknown) => number | null).bind(page);
+
+    // Nothing measured yet: full width, rather than a canvas collapsed to nothing for a frame.
+    expect(fit(room)).toBeNull();
+
+    (page['available'] as { set(value: number): void }).set(400);
+
+    // Width follows from the height it may take, because the canvas holds the room's aspect ratio.
+    expect(fit(room)).toBe(600);
+  });
+
+  it('keeps fixtures underneath the tables in paint order', async () => {
+    floorPlan.mockReturnValue(of(planWith([fixture_()], [table()])));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    const canvas = fixture.nativeElement.querySelector('.floor__canvas') as HTMLElement;
+    const drawn = [...canvas.children].map((child) => child.className.split(' ')[0]);
+
+    // Both are absolutely positioned with no z-index, so document order is the stacking order: a
+    // bar painted after a table would cover the amount that table owes.
+    expect(drawn.indexOf('floor__fixture')).toBeLessThan(drawn.indexOf('floor__table'));
   });
 
   it('stops loading when the plan cannot be fetched, so the screen is not stuck', async () => {

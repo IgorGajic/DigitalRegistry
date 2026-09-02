@@ -30,6 +30,10 @@ public class SaveRoomLayoutCommandHandler(IDigitalRegistryDbContext context)
 
         var known = tables.ToDictionary(table => table.Id);
 
+        var existingFixtures = await context.RoomFixtures
+            .Where(fixture => fixture.RoomId == room.Id)
+            .ToListAsync(cancellationToken);
+
         var unknown = requestedIds.Where(id => !known.ContainsKey(id)).ToList();
 
         if (unknown.Count > 0)
@@ -66,6 +70,11 @@ public class SaveRoomLayoutCommandHandler(IDigitalRegistryDbContext context)
             removed.RoomId = null;
         }
 
+        if (ApplyFixtures(room, request.Fixtures, existingFixtures) is { } fixtureProblem)
+        {
+            return fixtureProblem;
+        }
+
         await context.SaveChangesAsync(cancellationToken);
 
         var saved = tables
@@ -89,12 +98,102 @@ public class SaveRoomLayoutCommandHandler(IDigitalRegistryDbContext context)
                 OldestOpenOrderAtUtc: null))
             .ToList();
 
+        var savedFixtures = await context.RoomFixtures
+            .AsNoTracking()
+            .Where(fixture => fixture.RoomId == room.Id)
+            .OrderBy(fixture => fixture.DisplayOrder)
+            .Select(fixture => new RoomFixtureDto(
+                Id: fixture.Id,
+                Kind: fixture.Kind,
+                Label: fixture.Label,
+                Shape: fixture.Shape,
+                Tone: fixture.Tone,
+                PositionX: fixture.PositionX,
+                PositionY: fixture.PositionY,
+                Width: fixture.Width,
+                Height: fixture.Height,
+                Rotation: fixture.Rotation,
+                DisplayOrder: fixture.DisplayOrder))
+            .ToListAsync(cancellationToken);
+
         return Result<RoomDto>.Success(new RoomDto(
             room.Id,
             room.Name,
             room.DisplayOrder,
             room.CanvasWidth,
             room.CanvasHeight,
-            saved));
+            saved,
+            savedFixtures));
+    }
+
+    /// <summary>
+    /// Brings the room's fixtures in line with what the editor sent: new ones added, known ones
+    /// moved, and anything left out removed. Returns the failure to report, or null if all is well.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is written until the caller saves, so a fixture that does not fit aborts the whole
+    /// request — the arrangement is stored as the owner arranged it, or not at all, tables included.
+    /// </remarks>
+    private Result<RoomDto>? ApplyFixtures(
+        Domain.Entities.Room room,
+        IReadOnlyList<FixtureLayoutRequest> requested,
+        List<Domain.Entities.RoomFixture> existing)
+    {
+        var byId = existing.ToDictionary(fixture => fixture.Id);
+        var keptIds = new HashSet<Guid>();
+
+        foreach (var layout in requested)
+        {
+            if (layout.PositionX + layout.Width > room.CanvasWidth
+                || layout.PositionY + layout.Height > room.CanvasHeight)
+            {
+                return Result<RoomDto>.Invalid(
+                    $"\"{layout.Label}\" does not fit inside the room's {room.CanvasWidth}"
+                    + $"×{room.CanvasHeight} area.");
+            }
+
+            Domain.Entities.RoomFixture fixture;
+
+            if (layout.Id is { } id)
+            {
+                // Loaded through the tenant filter and restricted to this room, so an id naming
+                // another restaurant's fixture — or another room's — simply is not here.
+                if (!byId.TryGetValue(id, out var found))
+                {
+                    return Result<RoomDto>.NotFound(
+                        "The layout refers to a fixture that does not belong to this room.");
+                }
+
+                fixture = found;
+                keptIds.Add(id);
+            }
+            else
+            {
+                fixture = new Domain.Entities.RoomFixture
+                {
+                    RestaurantId = room.RestaurantId,
+                    RoomId = room.Id
+                };
+
+                context.RoomFixtures.Add(fixture);
+            }
+
+            fixture.Kind = layout.Kind;
+            fixture.Label = layout.Label.Trim();
+            fixture.Shape = layout.Shape;
+            fixture.Tone = layout.Tone;
+            fixture.PositionX = layout.PositionX;
+            fixture.PositionY = layout.PositionY;
+            fixture.Width = layout.Width;
+            fixture.Height = layout.Height;
+            fixture.Rotation = layout.Rotation;
+            fixture.DisplayOrder = layout.DisplayOrder;
+        }
+
+        // Absent means deleted here, unlike a table, which is only taken out of the room.
+        context.RoomFixtures.RemoveRange(
+            existing.Where(fixture => !keptIds.Contains(fixture.Id)));
+
+        return null;
     }
 }

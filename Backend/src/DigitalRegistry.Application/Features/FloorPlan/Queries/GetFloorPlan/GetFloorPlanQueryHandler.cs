@@ -66,6 +66,31 @@ public class GetFloorPlanQueryHandler(
             .Select(room => new { room.Id, room.Name, room.DisplayOrder, room.CanvasWidth, room.CanvasHeight })
             .ToListAsync(cancellationToken);
 
+        // Landmarks, in one query like the tables. Unfiltered by `IncludeInactive`: a fixture has no
+        // state to be in, so there is nothing for that flag to mean here.
+        var fixtures = await context.RoomFixtures
+            .AsNoTracking()
+            .OrderBy(fixture => fixture.DisplayOrder)
+            .Select(fixture => new
+            {
+                fixture.RoomId,
+                Dto = new RoomFixtureDto(
+                    Id: fixture.Id,
+                    Kind: fixture.Kind,
+                    Label: fixture.Label,
+                    Shape: fixture.Shape,
+                    Tone: fixture.Tone,
+                    PositionX: fixture.PositionX,
+                    PositionY: fixture.PositionY,
+                    Width: fixture.Width,
+                    Height: fixture.Height,
+                    Rotation: fixture.Rotation,
+                    DisplayOrder: fixture.DisplayOrder)
+            })
+            .ToListAsync(cancellationToken);
+
+        var fixturesByRoom = fixtures.ToLookup(entry => entry.RoomId, entry => entry.Dto);
+
         var byRoom = tables
             .Select(table => new
             {
@@ -98,7 +123,8 @@ public class GetFloorPlanQueryHandler(
                 DisplayOrder: room.DisplayOrder,
                 CanvasWidth: room.CanvasWidth,
                 CanvasHeight: room.CanvasHeight,
-                Tables: byRoom[room.Id].OrderBy(table => table.TableNumber).ToList()))
+                Tables: byRoom[room.Id].OrderBy(table => table.TableNumber).ToList(),
+                Fixtures: fixturesByRoom[room.Id].ToList()))
             .ToList();
 
         var unplaced = byRoom[null].OrderBy(table => table.TableNumber).ToList();

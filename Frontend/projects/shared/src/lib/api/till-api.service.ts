@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { API_BASE_URL } from '../config/tokens';
 import {
+  FixtureLayoutRequest,
   FloorPlanDto,
   GenerateScheduleResultDto,
   InventoryValuationDto,
@@ -88,11 +89,22 @@ export class TillApiService {
     return this.http.delete<void>(`${this.base}/api/floor-plan/rooms/${id}`);
   }
 
-  /** Saves a room's whole arrangement. Tables left out of the list are taken out of the room. */
-  saveRoomLayout(roomId: string, tables: TableLayoutRequest[]): Observable<RoomDto> {
+  /**
+   * Saves a room's whole arrangement.
+   *
+   * Absence means different things for the two lists, which is the API's rule and not this method's:
+   * a table left out is taken out of the room, a fixture left out is deleted. A table outlives its
+   * room because it carries order history; a landmark drawn nowhere is nothing at all.
+   */
+  saveRoomLayout(
+    roomId: string,
+    tables: TableLayoutRequest[],
+    fixtures: FixtureLayoutRequest[],
+  ): Observable<RoomDto> {
     return this.http.put<RoomDto>(`${this.base}/api/floor-plan/rooms/${roomId}/layout`, {
       roomId,
       tables,
+      fixtures,
     });
   }
 
