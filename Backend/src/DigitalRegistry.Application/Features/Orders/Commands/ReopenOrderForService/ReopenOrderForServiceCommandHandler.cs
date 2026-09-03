@@ -4,15 +4,13 @@ using DigitalRegistry.Domain.Exceptions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
-namespace DigitalRegistry.Application.Features.Orders.Commands.MarkOrderServed;
+namespace DigitalRegistry.Application.Features.Orders.Commands.ReopenOrderForService;
 
-public class MarkOrderServedCommandHandler(
-    IDigitalRegistryDbContext context,
-    IDateTimeService dateTime)
-    : IRequestHandler<MarkOrderServedCommand, Result>
+public class ReopenOrderForServiceCommandHandler(IDigitalRegistryDbContext context)
+    : IRequestHandler<ReopenOrderForServiceCommand, Result>
 {
     public async Task<Result> Handle(
-        MarkOrderServedCommand request,
+        ReopenOrderForServiceCommand request,
         CancellationToken cancellationToken)
     {
         var order = await context.Orders
@@ -25,10 +23,9 @@ public class MarkOrderServedCommandHandler(
 
         try
         {
-            // Open or InPreparation only; the entity refuses anything else. Serving a paid or voided
-            // order is not a mistake worth a special message, it is a stale screen — two waiters with
-            // the floor open, one of whom pressed the button a moment earlier.
-            order.MarkServed(dateTime.UtcNow);
+            // Served only. A round that has since been paid for is not something to put back on a
+            // queue — the guest has the drinks and the money is in the till.
+            order.ReopenForService();
         }
         catch (DomainException exception)
         {

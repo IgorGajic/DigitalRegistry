@@ -1,4 +1,5 @@
 using DigitalRegistry.Api.Shared.Controllers;
+using DigitalRegistry.Application.Common.Security;
 using DigitalRegistry.Application.Features.Licensing.Queries.GetLicenseStatus;
 using DigitalRegistry.Application.Features.Licensing;
 using Microsoft.AspNetCore.Authorization;
@@ -11,10 +12,11 @@ namespace DigitalRegistry.Api.Controllers;
 /// </summary>
 /// <remarks>
 /// Exempt from the licence guard by design — a venue that cannot use the till still has to be able to
-/// find out why. Authentication is still required: the answer is about the caller's restaurant, which
-/// is read from their token.
+/// find out why. Staff only, though: the answer names the plan and the expiry date, and a QR table
+/// session is authenticated too. Bare <c>[Authorize]</c> handed the venue's commercial standing to
+/// anyone who scanned a table.
 /// </remarks>
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.ViewLicenseStatus)]
 public class LicenseController : ApiControllerBase
 {
     /// <summary>Returns whether the till is licensed, and for how much longer.</summary>

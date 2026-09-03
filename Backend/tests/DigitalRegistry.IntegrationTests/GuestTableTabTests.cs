@@ -138,4 +138,29 @@ public class GuestTableTabTests : IClassFixture<DigitalRegistryApiFactory>
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
+    [Fact]
+    public async Task A_table_session_cannot_read_the_venue_s_licence_position()
+    {
+        var manager = await factory.SignInAsync(DigitalRegistryApiFactory.ManagerEmail);
+        var session = await factory.OpenTableSessionAsync(manager);
+
+        var response = await session.Client.GetAsync("/api/license/status");
+
+        // A QR session is authenticated — it carries the restaurant and the guest role — so an
+        // endpoint guarded by bare [Authorize] answered it, and the answer names the venue's plan,
+        // its expiry and the days left. That is the venue's standing with the platform, and it does
+        // not belong on a phone that has been pointed at a table.
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Staff_still_read_the_licence_position__it_is_their_only_warning()
+    {
+        var waiter = await factory.SignInAsync(DigitalRegistryApiFactory.WaiterEmail);
+
+        var response = await waiter.GetAsync("/api/license/status");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 }

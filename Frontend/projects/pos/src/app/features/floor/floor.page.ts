@@ -1,4 +1,4 @@
-import { CurrencyPipe } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import {
   Component,
   DestroyRef,
@@ -42,6 +42,14 @@ import { RealtimeService } from 'shared/realtime';
 const BOTTOM_GUTTER = 16;
 
 /**
+ * How long a dismissed card takes to collapse.
+ *
+ * Long enough to be seen as a card leaving rather than a list jumping; short enough that a waiter
+ * working down a queue is never waiting on it. Must match the transition in the stylesheet.
+ */
+const LEAVE_MS = 220;
+
+/**
  * Never shrink the room below this, whatever the arithmetic says.
  *
  * Only a guard against absurd viewports, where the sum could reach zero or go negative and there
@@ -54,7 +62,7 @@ const MIN_CANVAS_HEIGHT = 200;
 
 @Component({
   selector: 'pos-floor',
-  imports: [CurrencyPipe, MatButtonModule, MatIconModule, MatProgressBarModule, MatTabsModule],
+  imports: [DecimalPipe, MatButtonModule, MatIconModule, MatProgressBarModule, MatTabsModule],
   template: `
     @if (loading()) {
       <mat-progress-bar mode="indeterminate" />
@@ -149,7 +157,9 @@ const MIN_CANVAS_HEIGHT = 200;
 
                         @if (table.openOrderIds.length > 0) {
                           <span class="floor__total">
-                            {{ table.openOrderTotal | currency: 'RSD' : 'symbol-narrow' : '1.0-0' }}
+                            {{ table.openOrderTotal | number: '1.0-0' }}<span
+                              class="floor__unit"
+                            >&nbsp;RSD</span>
                           </span>
                           @if (table.oldestOpenOrderAtUtc; as since) {
                             <span class="floor__since">{{ elapsed(since) }}</span>
@@ -182,7 +192,10 @@ const MIN_CANVAS_HEIGHT = 200;
 
             <div class="floor__queue-list">
               @for (ticket of queue(); track ticket.id) {
-                <article class="floor__ticket">
+                <article
+                  class="floor__ticket"
+                  [class.floor__ticket--leaving]="leaving().has(ticket.id)"
+                >
                   <header class="floor__ticket-head">
                     <span class="floor__ticket-table">Sto {{ ticket.tableNumber }}</span>
                     @if (ticket.roomName) {
@@ -215,6 +228,60 @@ const MIN_CANVAS_HEIGHT = 200;
                 <p class="dr-muted floor__queue-empty">Nema porudžbina na čekanju.</p>
               }
             </div>
+
+            <!--
+              The way back from a press meant for another table. The cards sit one under another and
+              the queue is worked one-handed while carrying a tray, so the wrong one is a realistic
+              slip. Kept in the same column rather than raised as a snackbar: a snackbar is gone in
+              six seconds, and the mistake is usually noticed on the walk back.
+
+              Folded away by default, because it is the exception. Open, it is the same card with the
+              button pointing the other way.
+            -->
+            @if (served().length) {
+              <details class="floor__served">
+                <summary>Nedavno izneto ({{ served().length }})</summary>
+
+                <div class="floor__served-list">
+                  @for (ticket of served(); track ticket.id) {
+                    <article
+                      class="floor__ticket floor__ticket--done"
+                      [class.floor__ticket--leaving]="leaving().has(ticket.id)"
+                    >
+                      <header class="floor__ticket-head">
+                        <span class="floor__ticket-table">Sto {{ ticket.tableNumber }}</span>
+                        @if (ticket.roomName) {
+                          <span class="floor__ticket-room">{{ ticket.roomName }}</span>
+                        }
+                        <span class="dr-toolbar-spacer"></span>
+                        @if (ticket.servedAtUtc; as at) {
+                          <span class="floor__ticket-since">pre {{ elapsed(at) }}</span>
+                        }
+                      </header>
+
+                      <ul class="floor__ticket-items">
+                        @for (line of ticket.items; track line.menuItemName) {
+                          <li>
+                            <span class="floor__ticket-qty">{{ line.quantity }}×</span>
+                            {{ line.menuItemName }}
+                          </li>
+                        }
+                      </ul>
+
+                      <button
+                        mat-stroked-button
+                        class="floor__ticket-done"
+                        [disabled]="serving() === ticket.id"
+                        (click)="reopen(ticket)"
+                      >
+                        <mat-icon>undo</mat-icon>
+                        Vrati u red
+                      </button>
+                    </article>
+                  }
+                </div>
+              </details>
+            }
           </aside>
           </div>
 
@@ -323,7 +390,58 @@ const MIN_CANVAS_HEIGHT = 200;
       font: inherit;
       line-height: 1.1;
       padding: 2px;
+      /* Its own container, so what is written inside can answer to how big the table is drawn.
+         The size comes from the room's coordinates and never from the text, which is what makes
+         this safe: nothing here can feed back into the box it is measured against. */
+      container-type: size;
       transition: filter 120ms ease;
+    }
+
+    /* A small table drawn on a scaled-down plan cannot hold four lines, and the ones that did not
+       fit were spilling over the ring — on a round table, straight across the edge. Rather than
+       clip them, the least urgent line goes first.
+       The order is the order a waiter needs them in: which table, then what it owes, then how long
+       it has been sitting. The seat count is the only static fact among them, so it goes first. */
+    /* Thresholds are against the container's CONTENT box, not the box on screen — a table drawn at
+       84 px reports 76 px here, because 2 px of border and 2 px of padding come off each side. Set
+       at 84 and then at 76, both of which quietly stripped the seat count off tables with room for
+       it; 68 sits between the two sizes this plan actually uses (59 and 76) with margin either way. */
+    @container (max-height: 68px) {
+      .floor__seats {
+        display: none;
+      }
+
+      /* A circle is at its widest only across the middle, and the amount sits below that — so on a
+         small round table it was crossing the ring on both sides even with room to spare above and
+         below. Stepped down here rather than clamped globally, because a large table has the space
+         and the number is what is read from across the room. */
+      .floor__number {
+        font-size: 0.95rem;
+      }
+
+      .floor__total {
+        font-size: 0.62rem;
+      }
+
+      .floor__since {
+        font-size: 0.55rem;
+      }
+
+      /* Every figure on this plan is in the same currency, and the legend above says so. On a table
+         too small to hold "1.390 RSD" without crossing its own ring, the three letters are the part
+         that carries no information. */
+      .floor__unit {
+        display: none;
+      }
+    }
+
+    /* Only for a table too small to be worth writing three lines in at all. The elapsed time is the
+       last thing to go: after the number and the amount, it is what tells a waiter which occupied
+       table has been sitting longest. */
+    @container (max-height: 44px) {
+      .floor__since {
+        display: none;
+      }
     }
 
     .floor__table:hover {
@@ -437,6 +555,77 @@ const MIN_CANVAS_HEIGHT = 200;
       background: var(--mat-sys-surface-container-low);
     }
 
+    /* Cards enter and leave rather than appear and vanish.
+       Leaving is animated on the card's own box — height, margins, padding, opacity — so the cards
+       below slide up into the space it gives back. That slide is the reorder: it falls out of the
+       layout instead of being staged separately, which means it is always in step with reality.
+       max-height rather than height because the card's real height is unknown; the value only has
+       to exceed any card, and a transition to 0 from it lands in the same place either way. */
+    .floor__ticket {
+      /* Never squeezed. The list is a column flex container, so its children shrink by default —
+         and once a card was given overflow:hidden for the collapse, nothing inside it pushed back
+         any more. The result was a column of cards with their buttons sliced off. */
+      flex: none;
+      max-height: 340px;
+      overflow: hidden;
+      transition:
+        max-height 220ms ease,
+        opacity 160ms ease,
+        margin 220ms ease,
+        padding 220ms ease,
+        border-width 220ms ease,
+        transform 220ms ease;
+    }
+
+    .floor__ticket--leaving {
+      max-height: 0;
+      opacity: 0;
+      margin-top: -8px;
+      padding-top: 0;
+      padding-bottom: 0;
+      border-width: 0;
+      /* A slight slide towards the button that dismissed it, so the card reads as being taken away
+         rather than as failing to render. */
+      transform: translateX(12px);
+    }
+
+    /* Somebody who has asked their system for less motion gets the list changing, not moving. */
+    @media (prefers-reduced-motion: reduce) {
+      .floor__ticket {
+        transition: none;
+      }
+    }
+
+    /* Already carried out: the same card with its emphasis removed and the button reversed. */
+    .floor__ticket--done {
+      border-left-color: var(--mat-sys-outline-variant);
+      opacity: 0.75;
+    }
+
+    .floor__served {
+      border-top: 1px solid var(--mat-sys-outline-variant);
+      /* Never grows past a third of the column: the queue is the job, this is the exception. */
+      max-height: 34%;
+      overflow-y: auto;
+      flex: none;
+    }
+
+    .floor__served summary {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--mat-sys-on-surface-variant);
+    }
+
+    .floor__served-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0 8px 8px;
+    }
+
     .floor__ticket-head {
       display: flex;
       align-items: baseline;
@@ -504,8 +693,21 @@ export class FloorPage {
   /** Rounds ordered from a phone that nobody has carried out yet, oldest first. */
   protected readonly queue = signal<ServiceTicketDto[]>([]);
 
+  /** Rounds carried out in the last half hour, newest first, in case one was a slip. */
+  protected readonly served = signal<ServiceTicketDto[]>([]);
+
   /** The ticket whose button has been pressed, so it cannot be pressed twice. */
   protected readonly serving = signal<string | null>(null);
+
+  /**
+   * Cards on their way out, still in the list while they collapse.
+   *
+   * Removing a card outright makes the ones below it jump into the gap, and on a screen worked at a
+   * glance a jump is indistinguishable from a mis-tap. Held for the length of the transition
+   * instead, so the card shrinks and the rest slide up into the space it gives back — which is the
+   * reorder animation, obtained from layout rather than staged on top of it.
+   */
+  protected readonly leaving = signal<ReadonlySet<string>>(new Set());
 
   protected readonly legend = [
     { status: TableStatus.Available, colour: 'var(--dr-free)' },
@@ -578,9 +780,49 @@ export class FloorPage {
     // queue and an unreachable one look the same, and a snackbar over the floor screen every time
     // the network hiccups would be worse than either.
     this.api.serviceQueue().subscribe({
-      next: (tickets) => this.queue.set(tickets),
+      next: (panel) => {
+        this.queue.set(panel.waiting);
+        this.served.set(panel.recentlyServed);
+        this.leaving.set(new Set());
+      },
       error: () => undefined,
     });
+  }
+
+  /**
+   * Lets a card finish collapsing, then drops it.
+   *
+   * The wait is the animation. It is skipped outright for anyone who has asked their system for
+   * less motion, who would otherwise be made to wait a quarter of a second for nothing.
+   */
+  private dismiss(id: string, remove: () => void): void {
+    // Guarded rather than called outright: `matchMedia` is a browser API, and this runs anywhere the
+    // component is instantiated. Where it is missing the honest answer is "no preference stated",
+    // which is the animated path.
+    const reduced =
+      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduced) {
+      remove();
+      return;
+    }
+
+    this.leaving.update((ids) => new Set(ids).add(id));
+
+    setTimeout(() => {
+      // Still going? A failed request calls reload(), which clears this set and puts the card back;
+      // without this check the timer would then take away the card the reload had just restored.
+      if (!this.leaving().has(id)) {
+        return;
+      }
+
+      remove();
+      this.leaving.update((ids) => {
+        const next = new Set(ids);
+        next.delete(id);
+        return next;
+      });
+    }, LEAVE_MS);
   }
 
   /**
@@ -592,13 +834,48 @@ export class FloorPage {
    */
   protected markServed(ticket: ServiceTicketDto): void {
     this.serving.set(ticket.id);
-    this.queue.update((tickets) => tickets.filter((candidate) => candidate.id !== ticket.id));
+
+    this.dismiss(ticket.id, () => {
+      this.queue.update((tickets) => tickets.filter((candidate) => candidate.id !== ticket.id));
+
+      // Straight onto the undo list, without waiting to be told. It is the same round, and the
+      // waiter who mis-tapped is already looking for the way back.
+      this.served.update((tickets) => [
+        { ...ticket, servedAtUtc: new Date().toISOString() },
+        ...tickets,
+      ]);
+    });
 
     this.api.markOrderServed(ticket.id).subscribe({
       next: () => this.serving.set(null),
       error: () => {
         // Put it back. Somebody else may have served it a moment ago, in which case the reload
         // takes it away again — but a card that vanished on a failure is a drink nobody carries.
+        this.serving.set(null);
+        this.reload();
+      },
+    });
+  }
+
+  /** Puts a round that was ticked off by mistake back at the front of the queue. */
+  protected reopen(ticket: ServiceTicketDto): void {
+    this.serving.set(ticket.id);
+
+    this.dismiss(ticket.id, () => {
+      this.served.update((tickets) => tickets.filter((candidate) => candidate.id !== ticket.id));
+
+      // Back where it was: the queue is oldest first, and this round is older than everything that
+      // arrived while it was briefly off the list.
+      this.queue.update((tickets) =>
+        [{ ...ticket, servedAtUtc: null }, ...tickets].sort((a, b) =>
+          a.placedAtUtc.localeCompare(b.placedAtUtc),
+        ),
+      );
+    });
+
+    this.api.reopenOrderForService(ticket.id).subscribe({
+      next: () => this.serving.set(null),
+      error: () => {
         this.serving.set(null);
         this.reload();
       },

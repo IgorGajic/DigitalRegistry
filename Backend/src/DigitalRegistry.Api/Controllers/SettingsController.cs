@@ -16,6 +16,12 @@ namespace DigitalRegistry.Api.Controllers;
 /// staff, because the theme decides which colours the floor screen is drawn in and a waiter needs
 /// that as much as the owner does; writing is the owner's, because it is a decision made once for
 /// the whole venue.
+/// <para>
+/// Reading also answers a QR table session, which is authenticated as a guest. Left that way after
+/// checking what it discloses: the venue's own name, which the guest is looking at on their own
+/// screen, and which colour it is painted in. Nothing commercial, unlike the licence endpoint next
+/// door — and it is what would let the guest screen wear the venue's palette.
+/// </para>
 /// </remarks>
 [Authorize]
 public class SettingsController : ApiControllerBase

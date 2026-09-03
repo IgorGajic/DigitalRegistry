@@ -128,6 +128,14 @@ interface NavItem {
       color: var(--mat-sys-on-secondary-container);
     }
 
+    /* The connection indicator is a 24 px glyph and has to stay one. The toolbar is a flex row, so
+       on a tablet it was being squeezed to 18 and drawn distorted — the one element on screen whose
+       whole job is to be recognised at a glance, quietly deformed at the width it matters most. */
+    .shell__live,
+    .shell__offline {
+      flex: none;
+    }
+
     .shell__live {
       color: var(--dr-free);
     }

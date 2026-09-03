@@ -143,7 +143,15 @@ export interface ServiceTicketDto {
   tableNumber: number;
   roomName: string | null;
   placedAtUtc: string;
+  /** When it went out, or null while it is still waiting. */
+  servedAtUtc: string | null;
   items: ServiceTicketLineDto[];
+}
+
+/** The floor screen's service panel: what is waiting, and what has just gone out. */
+export interface ServiceQueueDto {
+  waiting: ServiceTicketDto[];
+  recentlyServed: ServiceTicketDto[];
 }
 
 /** What is on the tray. Deliberately unpriced: money belongs to the bill, not to the carrying. */

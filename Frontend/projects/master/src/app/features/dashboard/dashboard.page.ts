@@ -157,10 +157,16 @@ import {
       flex-direction: column;
       gap: 2px;
       padding: 12px 16px;
+      /* So the figure below can be sized against the tile it sits in rather than against the page. */
+      container-type: inline-size;
     }
 
+    /* Sized to the tile, not fixed. The tiles are a responsive grid down to 170 px, and at that
+       width "670.000 RSD" set at 1.6rem needed 169 px inside a 156 px box — the largest number on
+       the screen was the one being cut off. 9cqw holds the old size once a tile is wide enough and
+       steps down before it has to clip. */
     .dash__tiles strong {
-      font-size: 1.6rem;
+      font-size: clamp(1rem, 9cqw, 1.6rem);
       font-family: var(--dr-font-mono);
       font-variant-numeric: tabular-nums;
     }

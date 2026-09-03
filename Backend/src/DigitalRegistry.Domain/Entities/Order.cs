@@ -25,6 +25,16 @@ public class Order : AggregateRoot, IRestaurantScoped
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// When the round was carried out to the table, or null while it is still waiting.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="OrderStatus.Served"/> says <em>that</em> it went out; this says when, which is what
+    /// lets the floor screen offer the last few back for a press that was meant for another table.
+    /// Cleared again by <see cref="ReopenForService"/>, so it always agrees with the status.
+    /// </remarks>
+    public DateTime? ServedAtUtc { get; set; }
+
     public Table? Table { get; set; }
 
     public ApplicationUser? Waiter { get; set; }
@@ -267,7 +277,30 @@ public class Order : AggregateRoot, IRestaurantScoped
 
     public void MarkInPreparation() => TransitionTo(OrderStatus.InPreparation, OrderStatus.Open);
 
-    public void MarkServed() => TransitionTo(OrderStatus.Served, OrderStatus.Open, OrderStatus.InPreparation);
+    public void MarkServed(DateTime servedAtUtc)
+    {
+        TransitionTo(OrderStatus.Served, OrderStatus.Open, OrderStatus.InPreparation);
+        ServedAtUtc = servedAtUtc;
+    }
+
+    /// <summary>
+    /// Puts a round back on the floor screen's queue after it was marked carried out.
+    /// </summary>
+    /// <remarks>
+    /// For the press of a button that was meant for a different table. The queue is worked one-handed
+    /// while carrying a tray, the cards sit one under another, and the wrong one is a realistic slip
+    /// rather than a hypothetical one — so it has to be reversible.
+    /// <para>
+    /// Only from <see cref="OrderStatus.Served"/>, which means it can never resurrect something that
+    /// has been paid, cancelled or voided. Nothing about the money moves either way: serving never
+    /// touched it, so neither does taking it back.
+    /// </para>
+    /// </remarks>
+    public void ReopenForService()
+    {
+        TransitionTo(OrderStatus.Open, OrderStatus.Served);
+        ServedAtUtc = null;
+    }
 
     public void Cancel() => TransitionTo(
         OrderStatus.Cancelled,

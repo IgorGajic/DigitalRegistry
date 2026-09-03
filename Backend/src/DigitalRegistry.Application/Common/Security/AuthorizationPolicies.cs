@@ -119,6 +119,22 @@ public static class AuthorizationPolicies
     public const string ManageRestaurantSettings = nameof(ManageRestaurantSettings);
 
     /// <summary>
+    /// Read the venue's own licence position.
+    /// </summary>
+    /// <remarks>
+    /// Staff, and not a guest at a table. A QR session is authenticated — it carries the restaurant
+    /// and the guest role — so an endpoint guarded by nothing more than <c>[Authorize]</c> answered
+    /// it, and the answer names the venue's plan, its expiry date and how many days are left. That is
+    /// the venue's commercial standing with the platform, and it has no business on a phone that has
+    /// been pointed at a table.
+    /// <para>
+    /// Every staff role, because the banner it feeds is shown to all of them, and because a till that
+    /// has stopped working has to be able to say why to whoever is standing at it.
+    /// </para>
+    /// </remarks>
+    public const string ViewLicenseStatus = nameof(ViewLicenseStatus);
+
+    /// <summary>
     /// Mark an order as carried to its table.
     /// </summary>
     /// <remarks>
@@ -148,6 +164,7 @@ public static class AuthorizationPolicies
         [FinancialReports] = [UserRole.Owner],
         [ManageStaff] = [UserRole.Owner],
         [ManageRestaurantSettings] = [UserRole.Owner],
+        [ViewLicenseStatus] = [UserRole.Waiter, UserRole.Manager, UserRole.Owner],
         [ServeOrder] = [UserRole.Waiter, UserRole.Manager, UserRole.Owner],
         [ManageReservationDesk] = [UserRole.Waiter, UserRole.Manager, UserRole.Owner]
     };

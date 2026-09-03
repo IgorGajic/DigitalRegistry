@@ -33,8 +33,8 @@ import { AuthService } from 'shared';
 
       <span class="dr-toolbar-spacer"></span>
 
-      <span class="dr-muted">{{ auth.displayName() }}</span>
-      <button mat-icon-button (click)="auth.logout()" aria-label="Odjavi se">
+      <span class="dr-muted shell__who">{{ auth.displayName() }}</span>
+      <button mat-icon-button class="shell__out" (click)="auth.logout()" aria-label="Odjavi se">
         <mat-icon>logout</mat-icon>
       </button>
     </mat-toolbar>
@@ -42,6 +42,28 @@ import { AuthService } from 'shared';
     <router-outlet />
   `,
   styles: `
+    /* The toolbar is a flex row that does not wrap, so whatever sits last gets pushed off the end
+       when the row runs out of room. At 820 px that was the sign-out button — 14 px of it past the
+       right edge of the window, on the one control that has to work when nothing else does.
+       The name yields instead: it truncates, and disappears entirely on a narrow screen, where the
+       one person who can be signed in already knows who they are. */
+    .shell__who {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .shell__out {
+      flex: none;
+    }
+
+    @media (max-width: 900px) {
+      .shell__who {
+        display: none;
+      }
+    }
+
     .shell__bar {
       position: sticky;
       top: 0;

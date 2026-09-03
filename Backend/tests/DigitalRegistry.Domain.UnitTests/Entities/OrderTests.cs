@@ -211,12 +211,12 @@ public class OrderTests
     public void MarkServed_IsReachableFromOpenAndFromInPreparation()
     {
         var fromOpen = Order.OpenForTable(Table(), Guid.NewGuid());
-        fromOpen.MarkServed();
+        fromOpen.MarkServed(DateTime.UtcNow);
         Assert.Equal(OrderStatus.Served, fromOpen.Status);
 
         var fromPreparation = Order.OpenForTable(Table(), Guid.NewGuid());
         fromPreparation.MarkInPreparation();
-        fromPreparation.MarkServed();
+        fromPreparation.MarkServed(DateTime.UtcNow);
         Assert.Equal(OrderStatus.Served, fromPreparation.Status);
     }
 
@@ -229,7 +229,7 @@ public class OrderTests
 
         // Nothing follows Paid.
         Assert.Throws<DomainException>(order.MarkInPreparation);
-        Assert.Throws<DomainException>(order.MarkServed);
+        Assert.Throws<DomainException>(() => order.MarkServed(DateTime.UtcNow));
         Assert.Throws<DomainException>(order.Cancel);
     }
 

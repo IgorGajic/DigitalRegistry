@@ -92,19 +92,21 @@ describe('FloorPage', () => {
   let floorPlan: ReturnType<typeof vi.fn>;
   let serviceQueue: ReturnType<typeof vi.fn>;
   let markOrderServed: ReturnType<typeof vi.fn>;
+  let reopenOrderForService: ReturnType<typeof vi.fn>;
   let lastEvent: ReturnType<typeof signal<unknown>>;
 
   beforeEach(async () => {
     floorPlan = vi.fn().mockReturnValue(of(emptyPlan));
-    serviceQueue = vi.fn().mockReturnValue(of([]));
+    serviceQueue = vi.fn().mockReturnValue(of({ waiting: [], recentlyServed: [] }));
     markOrderServed = vi.fn().mockReturnValue(of(undefined));
+    reopenOrderForService = vi.fn().mockReturnValue(of(undefined));
     lastEvent = signal<unknown>(null);
 
     TestBed.configureTestingModule({
       providers: [
         provideZonelessChangeDetection(),
         provideNoopAnimations(),
-        { provide: TillApiService, useValue: { floorPlan, serviceQueue, markOrderServed } },
+        { provide: TillApiService, useValue: { floorPlan, serviceQueue, markOrderServed, reopenOrderForService } },
         { provide: RealtimeService, useValue: { lastEvent, connected: signal(true) } },
         { provide: Router, useValue: { navigate: vi.fn().mockResolvedValue(true) } },
       ],
@@ -248,6 +250,7 @@ describe('FloorPage', () => {
       tableNumber: 7,
       roomName: 'Bašta',
       placedAtUtc: new Date().toISOString(),
+      servedAtUtc: null,
       items: [{ menuItemName: 'Espresso', quantity: 2 }],
       ...overrides,
     };
@@ -255,7 +258,7 @@ describe('FloorPage', () => {
 
   it('shows what was ordered, and where to take it', async () => {
     floorPlan.mockReturnValue(of(planWith([])));
-    serviceQueue.mockReturnValue(of([ticket()]));
+    serviceQueue.mockReturnValue(of({ waiting: [ticket()], recentlyServed: [] }));
     (page['reload'] as () => void)();
     await fixture.whenStable();
 
@@ -268,7 +271,9 @@ describe('FloorPage', () => {
   });
 
   it('takes the card away the moment it is pressed, without waiting for the round trip', async () => {
-    serviceQueue.mockReturnValue(of([ticket({ id: 'o1' }), ticket({ id: 'o2', tableNumber: 9 })]));
+    serviceQueue.mockReturnValue(
+      of({ waiting: [ticket({ id: 'o1' }), ticket({ id: 'o2', tableNumber: 9 })], recentlyServed: [] }),
+    );
     (page['reload'] as () => void)();
     await fixture.whenStable();
 
@@ -278,12 +283,17 @@ describe('FloorPage', () => {
     // request completes.
     (page['markServed'] as (t: unknown) => void)(ticket({ id: 'o1' }));
 
+    // The request goes out at once; the card is held only for as long as it takes to collapse.
     expect(markOrderServed).toHaveBeenCalledWith('o1');
+    expect((page['leaving'] as () => ReadonlySet<string>)().has('o1')).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     expect((page['queue'] as () => { id: string }[])().map((t) => t.id)).toEqual(['o2']);
   });
 
   it('puts the card back when marking it served fails', async () => {
-    serviceQueue.mockReturnValue(of([ticket()]));
+    serviceQueue.mockReturnValue(of({ waiting: [ticket()], recentlyServed: [] }));
     (page['reload'] as () => void)();
     await fixture.whenStable();
 
@@ -292,6 +302,7 @@ describe('FloorPage', () => {
     );
 
     (page['markServed'] as (t: unknown) => void)(ticket());
+    await new Promise((resolve) => setTimeout(resolve, 300));
     await fixture.whenStable();
 
     // A card that vanished on a failure is a drink nobody carries. The reload restores the truth.
@@ -300,7 +311,7 @@ describe('FloorPage', () => {
 
   it('names the table even when it sits in no room yet', async () => {
     floorPlan.mockReturnValue(of(planWith([])));
-    serviceQueue.mockReturnValue(of([ticket({ roomName: null })]));
+    serviceQueue.mockReturnValue(of({ waiting: [ticket({ roomName: null })], recentlyServed: [] }));
     (page['reload'] as () => void)();
     await fixture.whenStable();
 
@@ -317,6 +328,38 @@ describe('FloorPage', () => {
     await fixture.whenStable();
 
     expect(serviceQueue).toHaveBeenCalledTimes(2);
+  });
+
+  it('offers a round back after it was ticked off, and puts it in its place in the queue', async () => {
+    const older = ticket({ id: 'o1', placedAtUtc: '2026-01-01T10:00:00Z' });
+    const newer = ticket({ id: 'o2', placedAtUtc: '2026-01-01T12:00:00Z' });
+
+    serviceQueue.mockReturnValue(
+      of({ waiting: [newer], recentlyServed: [{ ...older, servedAtUtc: '2026-01-01T11:00:00Z' }] }),
+    );
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    (page['reopen'] as (t: unknown) => void)(older);
+    expect(reopenOrderForService).toHaveBeenCalledWith('o1');
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    // Ahead of the newer one: the queue is oldest first, and this round was placed two hours before
+    // the one that arrived while it was briefly off the list.
+    expect((page['queue'] as () => { id: string }[])().map((t) => t.id)).toEqual(['o1', 'o2']);
+    expect((page['served'] as () => unknown[])()).toHaveLength(0);
+  });
+
+  it('moves a served round straight onto the undo list, without waiting to be told', async () => {
+    serviceQueue.mockReturnValue(of({ waiting: [ticket({ id: 'o1' })], recentlyServed: [] }));
+    (page['reload'] as () => void)();
+    await fixture.whenStable();
+
+    (page['markServed'] as (t: unknown) => void)(ticket({ id: 'o1' }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    expect((page['served'] as () => { id: string }[])().map((t) => t.id)).toEqual(['o1']);
   });
 
   it('stops loading when the plan cannot be fetched, so the screen is not stuck', async () => {

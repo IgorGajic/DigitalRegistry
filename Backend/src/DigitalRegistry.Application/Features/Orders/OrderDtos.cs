@@ -28,6 +28,16 @@ public record OrderDto(
     IReadOnlyList<OrderItemDto> Items);
 
 /// <summary>
+/// The floor screen's service panel: what is waiting, and what has just gone out.
+/// </summary>
+/// <remarks>
+/// One object rather than two endpoints, because it is one panel refreshed on the same triggers.
+/// </remarks>
+public record ServiceQueueDto(
+    IReadOnlyList<ServiceTicketDto> Waiting,
+    IReadOnlyList<ServiceTicketDto> RecentlyServed);
+
+/// <summary>
 /// One round waiting to be carried out to a table.
 /// </summary>
 /// <param name="RoomName">
@@ -41,6 +51,7 @@ public record ServiceTicketDto(
     int TableNumber,
     string? RoomName,
     DateTime PlacedAtUtc,
+    DateTime? ServedAtUtc,
     IReadOnlyList<ServiceTicketLineDto> Items);
 
 /// <summary>What is on the tray, and how many of it.</summary>

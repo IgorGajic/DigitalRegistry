@@ -18,6 +18,7 @@ import {
   ReservationDto,
   ReservationScheduleEntryDto,
   RoomDto,
+  ServiceQueueDto,
   ServiceTicketDto,
   ShiftAssignmentDto,
   ShiftTemplateDto,
@@ -93,8 +94,8 @@ export class TillApiService {
   /**
    * What guests have ordered from their phones and nobody has carried out yet, oldest first.
    */
-  serviceQueue(): Observable<ServiceTicketDto[]> {
-    return this.http.get<ServiceTicketDto[]>(`${this.base}/api/orders/service-queue`);
+  serviceQueue(): Observable<ServiceQueueDto> {
+    return this.http.get<ServiceQueueDto>(`${this.base}/api/orders/service-queue`);
   }
 
   /**
@@ -105,6 +106,11 @@ export class TillApiService {
    */
   markOrderServed(orderId: string): Observable<void> {
     return this.http.post<void>(`${this.base}/api/orders/${orderId}/served`, {});
+  }
+
+  /** Puts a round back on the queue after it was ticked off by mistake. */
+  reopenOrderForService(orderId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/api/orders/${orderId}/unserved`, {});
   }
 
   /**

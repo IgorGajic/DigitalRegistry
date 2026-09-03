@@ -11,4 +11,4 @@ namespace DigitalRegistry.Application.Features.Orders.Queries.GetServiceQueue;
 /// what they wrote down; the queue exists for the rounds that arrive with nobody attached to them,
 /// placed from a phone at a table the staff may not have looked at.
 /// </remarks>
-public record GetServiceQueueQuery : IRequest<Result<IReadOnlyList<ServiceTicketDto>>>;
+public record GetServiceQueueQuery : IRequest<Result<ServiceQueueDto>>;

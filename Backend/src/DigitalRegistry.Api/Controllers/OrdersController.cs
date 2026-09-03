@@ -13,6 +13,7 @@ using DigitalRegistry.Application.Features.Orders.Queries.GetTableSessionOrders;
 using DigitalRegistry.Application.Features.Orders.Queries.GetReceipt;
 using DigitalRegistry.Application.Features.Orders;
 using DigitalRegistry.Application.Features.Orders.Commands.MarkOrderServed;
+using DigitalRegistry.Application.Features.Orders.Commands.ReopenOrderForService;
 using DigitalRegistry.Application.Features.Orders.Queries.GetServiceQueue;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -47,7 +48,7 @@ public class OrdersController : ApiControllerBase
     /// <response code="200">What is waiting, oldest first.</response>
     [HttpGet("service-queue")]
     [Authorize(Policy = AuthorizationPolicies.ServeOrder)]
-    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(IReadOnlyList<ServiceTicketDto>))]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(ServiceQueueDto))]
     public async Task<ActionResult> GetServiceQueue(CancellationToken cancellationToken) =>
         ToActionResult(await Sender.Send(new GetServiceQueueQuery(), cancellationToken));
 
@@ -66,6 +67,23 @@ public class OrdersController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ProblemDetails))]
     public async Task<ActionResult> MarkServed(Guid id, CancellationToken cancellationToken) =>
         ToActionResult(await Sender.Send(new MarkOrderServedCommand(id), cancellationToken));
+
+    /// <summary>Puts a round back on the queue after it was ticked off by mistake.</summary>
+    /// <remarks>
+    /// The queue is worked one-handed while carrying a tray and the cards sit one under another, so
+    /// pressing the wrong one is a realistic slip. Nothing about the money moves: marking a round
+    /// served never touched it, and neither does taking that back.
+    /// </remarks>
+    /// <response code="204">Back on the queue.</response>
+    /// <response code="404">No such order.</response>
+    /// <response code="409">It has moved on since — paid, cancelled, or never served.</response>
+    [HttpPost("{id:guid}/unserved")]
+    [Authorize(Policy = AuthorizationPolicies.ServeOrder)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound, Type = typeof(ProblemDetails))]
+    [ProducesResponseType(StatusCodes.Status409Conflict, Type = typeof(ProblemDetails))]
+    public async Task<ActionResult> ReopenForService(Guid id, CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new ReopenOrderForServiceCommand(id), cancellationToken));
 
     /// <summary>What the caller's own table has had so far, across every round still running.</summary>
     /// <remarks>
