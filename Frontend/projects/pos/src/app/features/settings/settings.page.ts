@@ -3,10 +3,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   AppTheme,
   LoadingState,
+  OrderAlertService,
   TableStatus,
   ThemeService,
   appThemeDescriptions,
@@ -28,7 +30,13 @@ import {
  */
 @Component({
   selector: 'pos-settings',
-  imports: [MatButtonModule, MatCardModule, MatIconModule, MatProgressBarModule],
+  imports: [
+    MatButtonModule,
+    MatCardModule,
+    MatIconModule,
+    MatProgressBarModule,
+    MatSlideToggleModule,
+  ],
   template: `
     @if (loading.active()) {
       <mat-progress-bar mode="indeterminate" />
@@ -93,6 +101,37 @@ import {
             Sačuvaj temu
           </button>
         </mat-card-actions>
+      </mat-card>
+
+      <!--
+        Separate card, and no Save button: this one is a property of the machine standing in the
+        room, not of the restaurant. The tablet on the floor and the laptop in the office are not in
+        the same room and have no reason to agree, so it is kept on the device and takes effect the
+        moment it is switched.
+      -->
+      <mat-card class="set__sound">
+        <mat-card-header>
+          <mat-card-title>Zvuk nove porudžbine</mat-card-title>
+          <mat-card-subtitle>
+            Važi samo za ovaj uređaj. Menja se odmah, bez čuvanja.
+          </mat-card-subtitle>
+        </mat-card-header>
+
+        <mat-card-content>
+          <mat-slide-toggle [checked]="soundOn()" (change)="toggleSound($event.checked)">
+            Oglasi se kad stigne porudžbina sa telefona gosta
+          </mat-slide-toggle>
+
+          <p class="set__sound-note">
+            Kartica se na sali pojavi sama, ali samo ako neko gleda u ekran. U bučnom lokalu niko ne
+            gleda.
+          </p>
+
+          <button mat-stroked-button (click)="playSound()">
+            <mat-icon>volume_up</mat-icon>
+            Poslušaj
+          </button>
+        </mat-card-content>
       </mat-card>
     </div>
   `,
@@ -168,10 +207,29 @@ import {
       font-size: 0.85rem;
       font-weight: 600;
     }
+
+    .set__sound {
+      margin-top: 16px;
+    }
+
+    .set__sound mat-card-content {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .set__sound-note {
+      margin: 0;
+      max-width: 60ch;
+      font-size: 0.8rem;
+      color: var(--mat-sys-on-surface-variant);
+    }
   `,
 })
 export class SettingsPage {
   private readonly themeService = inject(ThemeService);
+  private readonly alert = inject(OrderAlertService);
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly loading = new LoadingState();
@@ -191,6 +249,8 @@ export class SettingsPage {
 
   protected readonly dirty = () => this.chosen() !== this.saved();
 
+  protected readonly soundOn = this.alert.enabled;
+
   constructor() {
     this.loading.track(this.themeService.load()).subscribe({
       next: (settings) => {
@@ -200,6 +260,21 @@ export class SettingsPage {
       // The application is already painted in something; a failed read is not worth a message here.
       error: () => undefined,
     });
+  }
+
+  protected toggleSound(enabled: boolean): void {
+    this.alert.setEnabled(enabled);
+
+    // Sounded on the way on, not on the way off. Turning it on is a claim about what will happen
+    // in the room, and the only way to check it is to hear it.
+    if (enabled) {
+      this.alert.preview();
+    }
+  }
+
+  /** Plays it whatever the switch says: the point is to know what is being turned on. */
+  protected playSound(): void {
+    this.alert.preview();
   }
 
   protected choose(theme: AppTheme): void {

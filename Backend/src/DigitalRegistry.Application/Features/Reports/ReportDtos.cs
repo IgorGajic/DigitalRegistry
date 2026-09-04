@@ -85,6 +85,48 @@ public record TopSellingItemDto(
     decimal? EstimatedCost,
     decimal? EstimatedMargin);
 
+/// <summary>
+/// One waiter's period, in the four figures an owner actually asks for.
+/// </summary>
+/// <param name="Name">First and last name, as the row is headed in the workbook.</param>
+/// <param name="OrderCount">
+/// Rounds credited to them: ones they took at the table, plus guest QR rounds they carried out. A
+/// round still on the queue belongs to nobody and is counted for nobody.
+/// </param>
+/// <param name="TotalValue">
+/// What those rounds came to, at the prices captured on the lines. Cancelled and reversed orders are
+/// left out, so this cannot be inflated by ringing things up and voiding them.
+/// </param>
+/// <param name="AverageServiceMinutes">
+/// Mean minutes from a round being placed to it reaching the table, or null when none of their
+/// rounds was ever timed. Only guest QR rounds carry both instants, so this measures the queue the
+/// floor screen shows — the one part of service the system observes rather than infers.
+/// </param>
+/// <param name="TimedOrderCount">
+/// How many rounds the average rests on. Shown because an average over two rounds and an average
+/// over two hundred are different claims.
+/// </param>
+/// <param name="HoursWorked">
+/// Rostered hours overlapping the period, clipped to it — a shift running past midnight on the last
+/// day counts only the part inside. Rostered, not clocked: the system has no time clock, and saying
+/// so is better than presenting a rota as attendance.
+/// </param>
+public record WaiterPerformanceRowDto(
+    Guid WaiterId,
+    string Name,
+    int OrderCount,
+    decimal TotalValue,
+    double? AverageServiceMinutes,
+    int TimedOrderCount,
+    double HoursWorked,
+    decimal ValuePerHour);
+
+/// <summary>The floor's staff over a period, one row each.</summary>
+public record WaiterPerformanceReportDto(
+    DateOnly FromDate,
+    DateOnly ToDate,
+    IReadOnlyList<WaiterPerformanceRowDto> Waiters);
+
 /// <summary>What the store holds and what it is worth.</summary>
 /// <param name="ConsumedQuantity">Drawn down by sales over the period, returns netted off.</param>
 /// <param name="ConsumedValue">What that consumption cost, at the average purchase price.</param>

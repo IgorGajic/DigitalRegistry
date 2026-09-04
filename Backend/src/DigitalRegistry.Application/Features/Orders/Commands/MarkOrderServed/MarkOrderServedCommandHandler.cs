@@ -8,7 +8,8 @@ namespace DigitalRegistry.Application.Features.Orders.Commands.MarkOrderServed;
 
 public class MarkOrderServedCommandHandler(
     IDigitalRegistryDbContext context,
-    IDateTimeService dateTime)
+    IDateTimeService dateTime,
+    ICurrentUserService currentUser)
     : IRequestHandler<MarkOrderServedCommand, Result>
 {
     public async Task<Result> Handle(
@@ -28,7 +29,10 @@ public class MarkOrderServedCommandHandler(
             // Open or InPreparation only; the entity refuses anything else. Serving a paid or voided
             // order is not a mistake worth a special message, it is a stale screen — two waiters with
             // the floor open, one of whom pressed the button a moment earlier.
-            order.MarkServed(dateTime.UtcNow);
+            // Who, not just when. A guest QR round has no waiter on it at all, so this is the only
+            // record that the round was somebody's work — and the owner's per-waiter report has
+            // nothing to measure service by without it.
+            order.MarkServed(dateTime.UtcNow, currentUser.UserId);
         }
         catch (DomainException exception)
         {

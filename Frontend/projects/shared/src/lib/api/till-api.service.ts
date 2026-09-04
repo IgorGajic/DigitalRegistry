@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -34,6 +34,7 @@ import {
   TurnoverReportDto,
   VoidReportDto,
   VoidResultDto,
+  WaiterPerformanceReportDto,
   WeeklyScheduleDto,
 } from '../models/dtos';
 import { OrderStatus, PaymentMethod, UserRole, WeekDays } from '../models/enums';
@@ -582,5 +583,27 @@ export class TillApiService {
     }
 
     return this.http.get<VoidReportDto>(`${this.base}/api/reports/voids`, { params });
+  }
+
+  /** What each member of the floor staff did over a period, by local business day. */
+  waiterPerformance(from: string, to: string): Observable<WaiterPerformanceReportDto> {
+    return this.http.get<WaiterPerformanceReportDto>(
+      `${this.base}/api/reports/waiter-performance`,
+      { params: new HttpParams().set('from', from).set('to', to) },
+    );
+  }
+
+  /**
+   * The same report as a workbook.
+   *
+   * Comes back as a blob rather than JSON, and the file name is the server's: it carries the period,
+   * and two exports of different weeks that both land in Downloads as the same name are one export.
+   */
+  waiterPerformanceExport(from: string, to: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`${this.base}/api/reports/waiter-performance/export`, {
+      params: new HttpParams().set('from', from).set('to', to),
+      responseType: 'blob',
+      observe: 'response',
+    });
   }
 }

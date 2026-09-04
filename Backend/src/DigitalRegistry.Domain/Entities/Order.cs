@@ -35,9 +35,26 @@ public class Order : AggregateRoot, IRestaurantScoped
     /// </remarks>
     public DateTime? ServedAtUtc { get; set; }
 
+    /// <summary>
+    /// Who carried the round out, or null while it is still waiting.
+    /// </summary>
+    /// <remarks>
+    /// Not the same person as <see cref="WaiterId"/>, and on a guest QR round there is no other
+    /// person: nobody took that order, so without this the one measurable act of service in the
+    /// whole system belongs to nobody. It is what lets the owner's report say how long the tables
+    /// <em>this</em> waiter covered actually waited.
+    /// <para>
+    /// Cleared again by <see cref="ReopenForService"/>, alongside <see cref="ServedAtUtc"/>: a round
+    /// put back on the queue was not carried out, so nobody carried it.
+    /// </para>
+    /// </remarks>
+    public Guid? ServedByWaiterId { get; set; }
+
     public Table? Table { get; set; }
 
     public ApplicationUser? Waiter { get; set; }
+
+    public ApplicationUser? ServedByWaiter { get; set; }
 
     public bool PlacedByGuest => WaiterId is null;
 
@@ -277,10 +294,16 @@ public class Order : AggregateRoot, IRestaurantScoped
 
     public void MarkInPreparation() => TransitionTo(OrderStatus.InPreparation, OrderStatus.Open);
 
-    public void MarkServed(DateTime servedAtUtc)
+    /// <summary>Records that the round went out, when, and who took it.</summary>
+    /// <param name="servedAtUtc">The instant it reached the table.</param>
+    /// <param name="servedByWaiterId">
+    /// Whoever pressed the button, or null where the caller is not a member of staff.
+    /// </param>
+    public void MarkServed(DateTime servedAtUtc, Guid? servedByWaiterId = null)
     {
         TransitionTo(OrderStatus.Served, OrderStatus.Open, OrderStatus.InPreparation);
         ServedAtUtc = servedAtUtc;
+        ServedByWaiterId = servedByWaiterId;
     }
 
     /// <summary>
@@ -300,6 +323,7 @@ public class Order : AggregateRoot, IRestaurantScoped
     {
         TransitionTo(OrderStatus.Open, OrderStatus.Served);
         ServedAtUtc = null;
+        ServedByWaiterId = null;
     }
 
     public void Cancel() => TransitionTo(

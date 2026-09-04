@@ -1,9 +1,10 @@
 import { CurrencyPipe } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MenuItemDto, TableTabDto, itemsLabel } from 'shared';
+import { MenuItemDto, TableTabDto, ThemeService, itemsLabel } from 'shared';
 
 import { GuestSessionService } from './guest-session.service';
 
@@ -428,6 +429,7 @@ export class GuestMenuPage implements OnInit {
   readonly token = input.required<string>();
 
   private readonly guests = inject(GuestSessionService);
+  private readonly theme = inject(ThemeService);
 
   protected readonly session = this.guests.session;
   protected readonly menu = signal<MenuItemDto[]>([]);
@@ -528,15 +530,20 @@ export class GuestMenuPage implements OnInit {
   private load(): void {
     this.loading.set(true);
 
-    this.guests.venue().subscribe({
-      next: (venue) => {
-        this.venueName.set(venue.restaurantName);
-
-        if (!venue.isValid) {
-          this.loading.set(false);
-          this.error.set('Restoran trenutno ne prima porudžbine preko koda.');
-        }
+    // Whose room this is, and what colour it is painted. Both from one call, because they are one
+    // fact: the guest's screen belongs to this venue for the length of a meal.
+    //
+    // The palette is worn, not adopted — never written to the phone's storage, so it lasts exactly
+    // as long as the session does. It also arrives late on purpose: painting before the token is
+    // traded would mean guessing, and a screen that changes colour a beat after it opens reads as a
+    // fault, whereas one that does so while the menu is still loading reads as the page arriving.
+    this.guests.settings().subscribe({
+      next: (settings) => {
+        this.venueName.set(settings.restaurantName);
+        this.theme.wearVenueTheme(settings.theme);
       },
+      // A guest who cannot be told whose room this is still gets a menu. The heading falls back to
+      // "Jelovnik", which is true of every venue and wrong about none.
       error: () => undefined,
     });
 
@@ -545,9 +552,16 @@ export class GuestMenuPage implements OnInit {
         this.menu.set(items);
         this.loading.set(false);
       },
-      error: () => {
+      error: (failure: HttpErrorResponse) => {
         this.loading.set(false);
-        this.error.set('Jelovnik trenutno nije dostupan. Pozovite konobara.');
+
+        // 402 is the venue not having paid, and it is the one failure with a different cause worth
+        // telling a guest apart: nothing is broken and calling somebody over will not fix it.
+        this.error.set(
+          failure.status === 402
+            ? 'Restoran trenutno ne prima porudžbine preko koda.'
+            : 'Jelovnik trenutno nije dostupan. Pozovite konobara.',
+        );
       },
     });
 

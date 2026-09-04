@@ -19,6 +19,7 @@ import {
   FixtureTone,
   FloorPlanDto,
   FloorPlanTableDto,
+  OrderAlertService,
   RoomDto,
   RoomFixtureDto,
   ServiceTicketDto,
@@ -680,6 +681,7 @@ export class FloorPage {
   private readonly api = inject(TillApiService);
   private readonly router = inject(Router);
   private readonly realtime = inject(RealtimeService);
+  private readonly alert = inject(OrderAlertService);
 
   protected readonly tableStatusLabels = tableStatusLabels;
   protected readonly seatsLabel = seatsLabel;
@@ -735,6 +737,19 @@ export class FloorPage {
   /** Bumped by anything that can change the measurement but is not itself state on this page. */
   private readonly viewportTick = signal(0);
 
+  /**
+   * Every round this screen has already seen, waiting or just carried out.
+   *
+   * The alert is for a round that was not there a moment ago, and "not there" has to mean more than
+   * "not in the waiting list": a card ticked off by mistake and put back would otherwise sound as
+   * though a new table had ordered. Holding both lists means the only thing that can be new is
+   * something that genuinely arrived.
+   */
+  private readonly seen = new Set<string>();
+
+  /** False until the first queue has been read, so opening the screen does not announce its backlog. */
+  private hasQueue = false;
+
   constructor() {
     this.reload();
 
@@ -781,6 +796,22 @@ export class FloorPage {
     // the network hiccups would be worse than either.
     this.api.serviceQueue().subscribe({
       next: (panel) => {
+        const arrived = panel.waiting.some((ticket) => !this.seen.has(ticket.id));
+
+        this.seen.clear();
+
+        for (const ticket of [...panel.waiting, ...panel.recentlyServed]) {
+          this.seen.add(ticket.id);
+        }
+
+        // Not on the first read. A waiter opening the floor screen to four waiting rounds is being
+        // told what is already on the board, not that something just came in.
+        if (this.hasQueue && arrived) {
+          this.alert.play();
+        }
+
+        this.hasQueue = true;
+
         this.queue.set(panel.waiting);
         this.served.set(panel.recentlyServed);
         this.leaving.set(new Set());

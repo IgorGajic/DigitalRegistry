@@ -4,9 +4,9 @@ import { Observable, tap } from 'rxjs';
 import {
   API_BASE_URL,
   AuthenticationResult,
-  LicenseStatusDto,
   MenuItemDto,
   OrderDto,
+  RestaurantSettingsDto,
   TABLE_SESSION_REQUEST,
   TableTabDto,
 } from 'shared';
@@ -50,9 +50,17 @@ export class GuestSessionService {
     return this.http.get<MenuItemDto[]>(`${this.baseUrl}/api/menu`, this.asTable());
   }
 
-  /** The venue's name, and whether it can trade at all — the licence screen's data, read as a guest. */
-  venue(): Observable<LicenseStatusDto> {
-    return this.http.get<LicenseStatusDto>(`${this.baseUrl}/api/license/status`, this.asTable());
+  /**
+   * The venue's name and the palette its till is painted in.
+   *
+   * Open to a table session by design, and checked before it was left that way: it discloses the
+   * name of the restaurant the guest is sitting in and a colour. That is the whole reason it is
+   * used here rather than the licence endpoint, which also carries the name but is staff-only —
+   * the answer there names the plan and the expiry date, which is the venue's commercial standing
+   * and none of a guest's business.
+   */
+  settings(): Observable<RestaurantSettingsDto> {
+    return this.http.get<RestaurantSettingsDto>(`${this.baseUrl}/api/settings`, this.asTable());
   }
 
   placeOrder(items: { menuItemId: string; quantity: number }[]): Observable<OrderDto> {

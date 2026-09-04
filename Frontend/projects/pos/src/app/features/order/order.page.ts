@@ -643,7 +643,13 @@ export class OrderPage {
     this.api.floorPlan().subscribe({
       next: (plan) => {
         const all = [...plan.rooms.flatMap((room) => room.tables), ...plan.unplacedTables];
-        const found = all.find((candidate) => candidate.id === this.tableId()) ?? null;
+
+        // Compared without regard to case, because an identifier of this kind is case-insensitive by
+        // definition while string comparison is not. An address typed or pasted in upper case would
+        // otherwise match nothing, and the screen would show an occupied table as free — and then
+        // open a second tab beside the one already running on it.
+        const wanted = this.tableId().toLowerCase();
+        const found = all.find((candidate) => candidate.id.toLowerCase() === wanted) ?? null;
 
         this.table.set(found);
         this.openTabIds.set(found?.openOrderIds ?? []);

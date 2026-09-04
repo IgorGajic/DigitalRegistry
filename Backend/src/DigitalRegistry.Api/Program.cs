@@ -61,6 +61,10 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
+            // Cross-origin JavaScript sees only a handful of response headers unless they are named
+            // here. Without this the report export saves under a generic fallback name instead of
+            // the one the server chose, which carries the period the report covers.
+            .WithExposedHeaders("Content-Disposition")
             // Required for the SignalR browser client, which sends credentials on the handshake.
             .AllowCredentials();
     }));

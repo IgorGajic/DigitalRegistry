@@ -26,6 +26,13 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(order => order.ServedByWaiter)
+            .WithMany()
+            .HasForeignKey(order => order.ServedByWaiterId)
+            // Null while the round is still on the queue, and on every round nobody ever pressed for.
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasMany(order => order.OrderItems)
             .WithOne(orderItem => orderItem.Order)
             .HasForeignKey(orderItem => orderItem.OrderId)

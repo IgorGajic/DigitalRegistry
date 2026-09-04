@@ -610,6 +610,31 @@ export interface VoidReportDto {
   entries: VoidReportEntryDto[];
 }
 
+/**
+ * One waiter's period.
+ *
+ * `averageServiceMinutes` is null where none of their rounds was ever timed — only a round ordered
+ * from a phone carries both the moment it was placed and the moment it went out — and `timedOrderCount`
+ * says how many rounds the average rests on, which is what makes it readable. `hoursWorked` is
+ * rostered, not clocked: there is no time clock in this system.
+ */
+export interface WaiterPerformanceRowDto {
+  waiterId: string;
+  name: string;
+  orderCount: number;
+  totalValue: number;
+  averageServiceMinutes: number | null;
+  timedOrderCount: number;
+  hoursWorked: number;
+  valuePerHour: number;
+}
+
+export interface WaiterPerformanceReportDto {
+  fromDate: string;
+  toDate: string;
+  waiters: WaiterPerformanceRowDto[];
+}
+
 // --------------------------------------------------------------------------------------- platform
 
 export interface RestaurantSummaryDto {

@@ -1,10 +1,13 @@
+using DigitalRegistry.Api.Services;
 using DigitalRegistry.Api.Shared.Controllers;
 using DigitalRegistry.Application.Common.Security;
 using DigitalRegistry.Application.Features.Reports.Queries.GetInventoryValuation;
 using DigitalRegistry.Application.Features.Reports.Queries.GetTopSellingItems;
 using DigitalRegistry.Application.Features.Reports.Queries.GetTurnoverReport;
 using DigitalRegistry.Application.Features.Reports.Queries.GetVoidReport;
+using DigitalRegistry.Application.Features.Reports.Queries.GetWaiterPerformance;
 using DigitalRegistry.Application.Features.Reports;
+using DigitalRegistry.Application.Features.Settings.Queries.GetRestaurantSettings;
 using DigitalRegistry.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -90,4 +93,60 @@ public class ReportsController : ApiControllerBase
         ToActionResult(await Sender.Send(
             new GetVoidReportQuery(from, to, performedByUserId, type),
             cancellationToken));
+
+    /// <summary>What each member of the floor staff did over a period.</summary>
+    /// <remarks>
+    /// Rounds are credited to whoever carried them out, falling back to whoever took them. Service
+    /// time can only be measured where both instants exist, which today means guest QR rounds; hours
+    /// are rostered hours clipped to the period, not attendance.
+    /// </remarks>
+    /// <param name="from">First business day, inclusive.</param>
+    /// <param name="to">Last business day, inclusive.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    [HttpGet("waiter-performance")]
+    [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(WaiterPerformanceReportDto))]
+    public async Task<ActionResult> GetWaiterPerformance(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        CancellationToken cancellationToken) =>
+        ToActionResult(await Sender.Send(new GetWaiterPerformanceQuery(from, to), cancellationToken));
+
+    /// <summary>
+    /// The same report as a spreadsheet, for the owner who takes it to the accountant.
+    /// </summary>
+    /// <remarks>
+    /// A second endpoint rather than a query parameter on the first, because the two return different
+    /// media and a client asking for JSON should never be able to get a file by accident.
+    /// </remarks>
+    /// <param name="from">First business day, inclusive.</param>
+    /// <param name="to">Last business day, inclusive.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    [HttpGet("waiter-performance/export")]
+    [Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> ExportWaiterPerformance(
+        [FromQuery] DateOnly from,
+        [FromQuery] DateOnly to,
+        CancellationToken cancellationToken)
+    {
+        var report = await Sender.Send(new GetWaiterPerformanceQuery(from, to), cancellationToken);
+
+        if (!report.Succeeded)
+        {
+            return ToActionResult(report);
+        }
+
+        // The venue's own name heads the sheet: once it is on somebody's desk beside three others,
+        // a workbook that only says "Konobari" is the one nobody can place.
+        var settings = await Sender.Send(new GetRestaurantSettingsQuery(), cancellationToken);
+
+        var bytes = WaiterPerformanceWorkbook.Build(
+            report.Value!,
+            settings.Succeeded ? settings.Value!.RestaurantName : string.Empty);
+
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            WaiterPerformanceWorkbook.FileName(report.Value!));
+    }
 }

@@ -10,6 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTableModule } from '@angular/material/table';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
@@ -18,8 +19,10 @@ import {
   TopSellingItemDto,
   TurnoverReportDto,
   VoidReportDto,
+  WaiterPerformanceReportDto,
   addDays,
   endOfDayUtc,
+  saveBlobResponse,
   startOfDayUtc,
   toDateOnly,
   voidTypeLabels,
@@ -248,6 +251,98 @@ import { TurnoverChart } from './turnover-chart';
           </mat-card>
         </mat-tab>
 
+        <mat-tab label="Konobari">
+          <mat-card class="rep__panel">
+            <mat-card-header>
+              <mat-card-title>Učinak po konobaru</mat-card-title>
+              <mat-card-subtitle>
+                Runde se pripisuju onome ko ih je izneo, a ako toga nema — onome ko ih je primio.
+              </mat-card-subtitle>
+              <span class="dr-toolbar-spacer"></span>
+              <button
+                mat-stroked-button
+                class="rep__export"
+                [disabled]="exporting() || waiterRows().length === 0"
+                (click)="exportWaiters()"
+              >
+                <mat-icon>download</mat-icon>
+                Izvezi u Excel
+              </button>
+            </mat-card-header>
+
+            <mat-card-content>
+              <table mat-table [dataSource]="waiterRows()">
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Konobar</th>
+                  <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="orders">
+                  <th mat-header-cell *matHeaderCellDef class="dr-numeric">Porudžbina</th>
+                  <td mat-cell *matCellDef="let row" class="dr-numeric">{{ row.orderCount }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="value">
+                  <th mat-header-cell *matHeaderCellDef class="dr-numeric">Vrednost</th>
+                  <td mat-cell *matCellDef="let row" class="dr-numeric">
+                    {{ row.totalValue | currency: 'RSD' : 'symbol-narrow' : '1.0-0' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="service">
+                  <th mat-header-cell *matHeaderCellDef class="dr-numeric">Prosečno čekanje</th>
+                  <td mat-cell *matCellDef="let row" class="dr-numeric">
+                    @if (row.averageServiceMinutes !== null) {
+                      <span
+                        [matTooltip]="
+                          'Mereno na ' + row.timedOrderCount + ' rundi poručenih preko QR koda'
+                        "
+                      >
+                        {{ row.averageServiceMinutes | number: '1.1-1' }} min
+                      </span>
+                    } @else {
+                      <span class="dr-muted" matTooltip="Nijedna runda ovog konobara nije merena">
+                        —
+                      </span>
+                    }
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="hours">
+                  <th mat-header-cell *matHeaderCellDef class="dr-numeric">Sati rada</th>
+                  <td mat-cell *matCellDef="let row" class="dr-numeric">
+                    {{ row.hoursWorked | number: '1.0-2' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="perHour">
+                  <th mat-header-cell *matHeaderCellDef class="dr-numeric">Po satu</th>
+                  <td mat-cell *matCellDef="let row" class="dr-numeric">
+                    @if (row.hoursWorked > 0) {
+                      {{ row.valuePerHour | number: '1.0-0' }}
+                    } @else {
+                      <span class="dr-muted">—</span>
+                    }
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="waiterColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: waiterColumns"></tr>
+              </table>
+
+              @if (waiterRows().length === 0) {
+                <p class="dr-empty">Nema porudžbina ni smena u izabranom periodu.</p>
+              }
+
+              <p class="rep__note dr-muted">
+                Sati rada su sati iz rasporeda smena, a ne evidencija dolaska — kasa nema
+                čitač radnog vremena. Vreme usluge se meri samo za runde poručene preko QR koda,
+                od porudžbine do trenutka kada je konobar potvrdio da ju je izneo.
+              </p>
+            </mat-card-content>
+          </mat-card>
+        </mat-tab>
+
         <mat-tab label="Storno">
           @if (voids(); as report) {
             <mat-card class="rep__panel">
@@ -385,6 +480,19 @@ import { TurnoverChart } from './turnover-chart';
       color: var(--dr-occupied);
     }
 
+    /* The card header lays its title block out as a grid; the button has to be told to sit on the
+       same row rather than under it. */
+    .rep__export {
+      align-self: center;
+      white-space: nowrap;
+    }
+
+    .rep__note {
+      margin: 16px 0 0;
+      font-size: 0.8rem;
+      max-width: 70ch;
+    }
+
     h3 {
       margin: 8px 0;
       font-size: 1rem;
@@ -425,6 +533,11 @@ import { TurnoverChart } from './turnover-chart';
       count: 'Storna',
       amount: 'Iznos',
       breakdown: 'Po tipu',
+      orders: 'Porudžbina',
+      value: 'Vrednost',
+      service: 'Prosečno čekanje',
+      hours: 'Sati rada',
+      perHour: 'Po satu',
     ));
 
     @media (max-width: 900px) {
@@ -443,6 +556,7 @@ import { TurnoverChart } from './turnover-chart';
 })
 export class ReportsPage {
   private readonly api = inject(TillApiService);
+  private readonly snackBar = inject(MatSnackBar);
 
   /** Three calls go out together here, so the bar has to outlast the first one to come back. */
   protected readonly loading = new LoadingState();
@@ -459,15 +573,21 @@ export class ReportsPage {
   ];
   protected readonly topColumns = ['name', 'category', 'quantity', 'revenue', 'cost', 'margin'];
   protected readonly staffColumns = ['name', 'count', 'amount', 'breakdown'];
+  protected readonly waiterColumns = ['name', 'orders', 'value', 'service', 'hours', 'perHour'];
 
   protected readonly turnover = signal<TurnoverReportDto | null>(null);
   protected readonly topItems = signal<TopSellingItemDto[]>([]);
   protected readonly voids = signal<VoidReportDto | null>(null);
+  protected readonly waiters = signal<WaiterPerformanceReportDto | null>(null);
+
+  /** Kept apart from {@link loading}: the export is one button, not the whole screen. */
+  protected readonly exporting = signal(false);
 
   protected from = addDays(new Date(), -6);
   protected to = new Date();
 
   protected readonly days = computed(() => this.turnover()?.days ?? []);
+  protected readonly waiterRows = computed(() => this.waiters()?.waiters ?? []);
 
   constructor() {
     this.load();
@@ -497,5 +617,33 @@ export class ReportsPage {
     this.loading
       .track(this.api.voidReport(fromUtc, toUtc))
       .subscribe((report) => this.voids.set(report));
+
+    // Business days again, like the turnover: a waiter's shift is a night, not a UTC date.
+    this.loading
+      .track(this.api.waiterPerformance(toDateOnly(this.from), toDateOnly(this.to)))
+      .subscribe((report) => this.waiters.set(report));
+  }
+
+  /**
+   * Downloads the per-waiter report as a workbook.
+   *
+   * The server builds it from the same query the table is drawn from, so the file cannot disagree
+   * with what is on screen the way a sheet serialised out of the browser could.
+   */
+  protected exportWaiters(): void {
+    this.exporting.set(true);
+
+    this.api.waiterPerformanceExport(toDateOnly(this.from), toDateOnly(this.to)).subscribe({
+      next: (response) => {
+        saveBlobResponse(response, 'konobari.xlsx');
+        this.exporting.set(false);
+      },
+      // The error interceptor reads a JSON problem document and this response is a blob, so it has
+      // nothing to say here; the message has to be given locally.
+      error: () => {
+        this.exporting.set(false);
+        this.snackBar.open('Izveštaj nije mogao da se preuzme.', 'U redu', { duration: 5000 });
+      },
+    });
   }
 }

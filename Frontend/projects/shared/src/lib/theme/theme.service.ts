@@ -81,6 +81,18 @@ export class ThemeService {
     this.current.set(theme);
   }
 
+  /**
+   * Wears a venue's palette without adopting it.
+   *
+   * For the guest's phone, which is not this venue's till: the screen a guest reaches by scanning a
+   * table shows the room they are sitting in rather than a stock blue, but nothing about that phone
+   * belongs to the restaurant and a palette written into its storage would outlive the meal.
+   */
+  wearVenueTheme(theme: AppTheme): void {
+    this.setAttribute(theme);
+    this.current.set(theme);
+  }
+
   /** Puts back whatever is actually stored, after a preview was not taken up. */
   revertPreview(): void {
     this.apply(this.cached() ?? AppTheme.Petrol);

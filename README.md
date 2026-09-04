@@ -150,10 +150,10 @@ npx ng test pos --watch=false
 `dotnet test` ne traži ništa instalirano: unit testovi rade nad domenom i handlerima, a integracioni
 dižu ceo host u procesu nad in-memory bazom sa demo podacima.
 
-Frontend testovi (vitest, 82 — 53 `shared` + 29 `pos`) pokrivaju ono što se ne vidi na ekranu:
+Frontend testovi (vitest, 101 — 59 `shared` + 42 `pos`) pokrivaju ono što se ne vidi na ekranu:
 interceptore (402 nasuprot 401 nasuprot sesije stola), prevod poruka sa backenda, srpsku množinu i
 proteklo vreme, geometriju grafikona, sesiju stola iz QR koda, pravila boja na sali, i validaciju
-unosa rezervacije. Backend ih ima 208 (131 domen, 51 aplikacija, 26 integracionih).
+unosa rezervacije. Backend ih ima 227 (131 domen, 62 aplikacija, 34 integraciona).
 
 Uz to, dve skripte rade protiv **pokrenutih** API-ja i žive baze:
 
